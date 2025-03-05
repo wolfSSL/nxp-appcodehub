@@ -1,9 +1,11 @@
 sample:
-  description: A hello server that uses the ethernet avaliable for the FRDM-MCXN947
-  name: TLS 1.3 Hello Server
+  description: A wolfTPM interactive demo with TLS server capabilities for the FRDM-MCXN947
+  name: wolfTPM Interactive Demo with TLS Server
 tests:
-  sample.basic.wolfssl:
+  sample.basic.wolftpm.wolfssl:
     tags:
       - Ethernet
       - Networking
       - TLS 1.3
+      - TPM
+      - SD Card
