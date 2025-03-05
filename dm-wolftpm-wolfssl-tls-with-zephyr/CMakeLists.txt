@@ -17,7 +17,6 @@ endif()
 
 target_sources(app PRIVATE src/main.c)
 target_sources(app PRIVATE src/mikroBUS.c)
-target_sources(app PRIVATE src/pmodInit.c)
 target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/csr/csr.c)
 target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/bench/bench.c)
 target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/tpm_test_keys.c)
