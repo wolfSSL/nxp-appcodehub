@@ -2,6 +2,42 @@
 
 <a href="https://www.nxp.com"> <img src="https://mcuxpresso.nxp.com/static/icon/nxp-logo-color.svg" width="125" style="margin-bottom: 40px;" /> </a> <a href="https://www.wolfssl.com"> <img src="../Images/wolfssl_logo_300px.png" width="100" style="margin-bottom: 40px" align=right /> </a>
 
+## NOTICE
+
+To use this demo you need the following branches untill wolfSSL and wolfTPM are
+updated to support Zephyr for the DEMO:
+
+
+1. wolfSSL in the `west.yml` needs to be updated to use the following branch:
+This only needs to happen if this
+(PR)[https://github.com/wolfSSL/wolfssl/pull/8531] is not merged:
+
+    remotes:
+        - name: wolfssl
+          url-base: https://github.com/night1rider
+    projects:
+        - name: wolfssl
+          path: modules/crypto/wolfssl
+          revision: zephyr-fs-rewind-fix
+          remote: wolfssl
+
+2. wolfTPM in the `west.yml` needs to be updated to use the following branch:
+This only needs to happen if this
+(PR)[https://github.com/wolfSSL/wolfTPM/pull/395] is not merged:
+
+    remotes:
+        - name: wolftpm
+          url-base: https://github.com/aidangarske
+    projects:
+        - name: wolftpm
+          path: modules/lib/wolftpm
+          revision: tpm_zephyr_support
+          remote: wolftpm
+
+
+
+
+
 ## wolfTPM Interactive Demo with TLS Server using Zephyr RTOS
 
 This demo demonstrates the comprehensive integration of wolfTPM with wolfSSL on the FRDM-MCXN947 platform.
