@@ -1,0 +1,32 @@
+/*
+ * Overlay file for FRDM-MCXN947
+ * Adds support for I2C on mikroBUS headers and SD card on LPSPI0
+ */
+
+/* Pinmux Configuration */
+&pinctrl {
+    pinmux_flexcomm3_lpi2c3: pinmux_flexcomm3_lpi2c3 {
+        group0 {
+            pinmux = <FC3_P0_PIO1_0>,  /* I2C SDA */
+                     <FC3_P1_PIO1_1>;  /* I2C SCL */
+            slew-rate = "fast";
+            drive-strength = "low";
+            input-enable;
+            bias-pull-up;
+            drive-open-drain;
+        };
+    };
+};
+
+/* I2C Configuration */
+&flexcomm3_lpi2c3 {
+    status = "okay";
+    pinctrl-0 = <&pinmux_flexcomm3_lpi2c3>;
+    pinctrl-names = "default";
+    clock-frequency = <I2C_BITRATE_STANDARD>;
+};
+
+&flexcomm3 {
+    status = "okay";
+};
+
