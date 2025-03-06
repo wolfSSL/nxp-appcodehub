@@ -101,7 +101,7 @@ extern "C" {
 //#define NO_WOLFSSL_CLIENT /* Optionally disable TLS client code */
 
 /* TLS v1.3 */
-#if defined(CONFIG_WOLFSSL_TLS_VERSION_1_3) || defined(CONFIG_WOLFSSL_TLS13_ENABLED)
+#if 1
     #define WOLFSSL_TLS13
 #endif
 
@@ -453,8 +453,6 @@ extern "C" {
 #define WOLFSSL_CERT_GEN
 #define WOLFSSL_CERT_REQ
 #define WOLFSSL_CERT_EXT
-//#define WOLFTPM2_NO_HEAP
-
 
 
 
@@ -469,6 +467,22 @@ extern "C" {
 #define PEM_FILE_EK "/SD:/ek.pem"
 #define PEM_FILE_SRK "/SD:/srk.pem"
 #define PEM_FILE_KEY "/SD:/key.pem"
+
+#define OUTPUT_FILE "/SD:/keyblob.bin"
+#define EK_PUB_FILE "/SD:/ek.pub"
+#define SRK_PUB_FILE "/SD:/srk.pub"
+#define AK_NAME_FILE "/SD:/ak.name"
+
+#define CA_RSA_CERT_PATH RSA_CERT_PEM
+#define WOLF_CA_RSA_CERT_PATH "/SD:/rcert.pem"
+#define CA_ECC_CERT_PATH ECC_CERT_PEM
+#define WOLF_CA_ECC_CERT_PATH "/SD:/ecert.pem"
+
+#define SERVER_RSA_CERT_PATH "/SD:/rcert.pem"
+#define TPM_RSA_CERT_PATH RSA_CERT_PEM
+#define SERVER_ECC_CERT_PATH "/SD:/ecert.pem"
+#define TPM_ECC_CERT_PATH ECC_CERT_PEM
+
 
 #ifdef __cplusplus
 }

@@ -30,6 +30,7 @@ target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/keygen/keyimpor
 target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/keygen/keyload.c)
 target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/management/tpmclear.c)
 target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/management/flush.c)
+target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/tls/tls_server.c)
 
 target_include_directories(app PRIVATE src)
 target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples/wrap)
@@ -39,6 +40,7 @@ target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples)
 target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples/native)
 target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples/keygen)
 target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples/management)
+target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples/tls)
 add_definitions(-DWOLFSSL_USER_SETTINGS)
 add_definitions(-DWOLFTPM_USER_SETTINGS)
 

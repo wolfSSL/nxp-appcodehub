@@ -34,6 +34,9 @@
 #include <csr.h>
 #include <wrap_test.h>
 #include <native_test.h>
+#include <keygen.h>
+#include <management.h>
+#include <tls_server.h>
 /* wolfTPM Includes End */
 
 
@@ -53,6 +56,9 @@
 #include <zephyr/net/net_config.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/net/socket.h>
+#include <zephyr/net/sntp.h>
+#include <zephyr/net/dns_resolve.h>
 /* Zephyr Includes End */
 
 
@@ -78,9 +84,10 @@
  
 #if DHCP_ON == 0
 /* Define Static IP, Gateway, and Netmask */
-    #define STATIC_IPV4_ADDR  "192.168.1.70"
-    #define STATIC_IPV4_GATEWAY "192.168.1.1"
+    #define STATIC_IPV4_ADDR  "192.168.0.70"
+    #define STATIC_IPV4_GATEWAY "192.168.0.1"
     #define STATIC_IPV4_NETMASK "255.255.255.0"
+    #define DNS_SERVER_ADDR "8.8.8.8"
 #endif
 
 /* Set the TLS Version Currently only 2 or 3 is avaliable for this */
@@ -98,12 +105,16 @@
     #define TLS_METHOD wolfTLSv1_3_server_method()
 #endif
 
+#define NTP_TIMESTAMP_DELTA 2208988800ull
+#define DNS_TIMEOUT 2000
+
+
 #define BENCHMARK_PROMPT "Enter benchmark type (-h,-aes or -xor): "
 #define WRAP_PROMPT "Enter wrap test option (-h,-aes or -xor): "
 #define DURATION_PROMPT "Set Benchmark Duration (Default 1 Sec)? (yes or no): "
 #define NATIVE_PROMPT "Enter native test option (-h,-aes or -xor): "
 #define KEYGEN_PROMPT "Enter a Keygen Option (-h for help)"
-
+#define SERVER_PROMPT "Enter a Server Option (-h for help)"
 
 static FATFS fat_fs;
 /* mounting info */
@@ -114,7 +125,78 @@ static struct fs_mount_t mp = {
 
 
 
+void set_time_using_ntp(const char* ntp_server) {
+    int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); /* NTP is UDP */
 
+    // NTP server address
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(123); /* NTP uses port 123 */
+    inet_pton(AF_INET, ntp_server, &server_addr.sin_addr.s_addr);
+
+    // Send request
+    unsigned char packet[48] = {0xE3, 0, 6, 0xEC, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+                                0, 0, 0};
+
+    sendto(sockfd, packet, sizeof(packet), 0, (struct sockaddr*)&server_addr, \
+                sizeof(server_addr));
+
+    /* Receive time */
+    struct sockaddr_in recv_addr;
+    socklen_t addr_len = sizeof(recv_addr);
+    recvfrom(sockfd, packet, sizeof(packet), 0, (struct sockaddr*)&recv_addr, \
+                &addr_len);
+
+    /* Extract time */
+    unsigned long long secsSince1900;
+    memcpy(&secsSince1900, &packet[40], sizeof(secsSince1900));
+    /* Network byte order to host byte order */
+    secsSince1900 = ntohl(secsSince1900);
+    time_t time = (time_t)(secsSince1900 - NTP_TIMESTAMP_DELTA);
+
+    struct timespec ts;
+    ts.tv_sec = time;
+    ts.tv_nsec = 0;
+    clock_settime(CLOCK_REALTIME, &ts);
+
+    // Print the time
+    char timeStr[50];
+    struct tm *timeinfo = localtime(&ts.tv_sec);
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
+    printf("Time set using NTP: %s\n", timeStr);
+
+    close(sockfd);
+}
+
+char* resolve_hostname(const char *hostname) {
+    static char ip_str[NET_IPV4_ADDR_LEN];
+    struct addrinfo hints, *res;
+    struct sockaddr_in *addr;
+    int err;
+
+    /* Initialize hints */
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET; /* Specify IPv4 address */
+
+    /* Resolve hostname to IP address */
+    err = getaddrinfo(hostname, NULL, &hints, &res);
+    if (err != 0) {
+        printf("getaddrinfo() failed: %d\n", err);
+        return NULL;
+    }
+
+    /* Convert the IP address to a human-readable form */
+    addr = (struct sockaddr_in *)res->ai_addr;
+    inet_ntop(AF_INET, &addr->sin_addr, ip_str, sizeof(ip_str));
+
+    /* Free the address info */
+    freeaddrinfo(res);
+
+    return ip_str;
+}
 
 
 /* Set up the network using the zephyr network stack */
@@ -161,7 +243,7 @@ int startNetwork() {
     #endif
 
     /* Display IP address that was assigned when done */
-    printk("IP Address is: %s", net_addr_ntop(AF_INET, \
+    printk("IP Address is: %s\n\n", net_addr_ntop(AF_INET, \
                     &iface->config.ip.ipv4->unicast[0].ipv4.address.in_addr, \
                     buf, sizeof(buf)));
 
@@ -169,152 +251,174 @@ int startNetwork() {
 }
 
 /* Initialize Server for a client connection */
-int startServer(void) {
-    int                sockfd = SOCKET_INVALID;
-    int                connd = SOCKET_INVALID;
-    struct sockaddr_in servAddr;
-    struct sockaddr_in clientAddr;
-    socklen_t          size = sizeof(clientAddr);
-    char               buff[256];
-    size_t             len;
-    int                shutdown = 0;
-    int                ret;
-    const char*        reply = "I hear ya fa shizzle!\n";
+int startServer(void)
+{
+    int ret = 0;
+    char input[5];
+    char keyType[5] = "-rsa"; /* Default key type */
+    char paramEnc[5] = "";    /* Parameter encryption */
+    char pkOption[5] = "";    /* PK callbacks option */
+    char loopOption[5] = "";  /* Run in loop option */
+    char selfSign[6] = "";    /* Self-signed cert option */
+    char portOption[10] = ""; /* Custom port option */
+    char* argv[7];            /* Arguments array */
+    int argc = 1;             /* Start with program name only */
 
-    WOLFSSL_CTX* ctx = NULL;
-    WOLFSSL*     ssl = NULL;
-    WOLFSSL_CIPHER* cipher;
+    printk("\n%s\n", SERVER_PROMPT);
+    
+    /* Prompt for key type */
+    printk("Select key type for server:\n");
+    printk(" 1. RSA (default)\n");
+    printk(" 2. ECC\n");
+    printk(" h. Help\n");
+    printk("Enter choice: ");
+    
+    ret = poll_response(input, sizeof(input));
+    printk("Input: %s\n", input);
+    
+    /* Process key type selection */
+    if (input[0] == 'h' || input[0] == 'H') {
+        /* Call server with help flag */
+        argv[0] = " ";
+        argv[1] = "-h";
+        return TPM2_TLS_ServerArgs(NULL, 2, argv);
+    }
+    else if (input[0] == '2') {
+        strcpy(keyType, "-ecc");
+        printk("Selected ECC key\n");
+    }
+    else {
+        printk("Selected RSA key (default)\n");
+    }
+    
+    /* Prompt for parameter encryption */
+    printk("Use parameter encryption? (1=AES, 2=XOR, n=none, default: none): ");
+    ret = poll_response(input, sizeof(input));
+    printk("Input: %s\n", input);
+    
+    if (input[0] == '1') {
+        strcpy(paramEnc, "-aes");
+        printk("Using AES parameter encryption\n");
+    }
+    else if (input[0] == '2') {
+        strcpy(paramEnc, "-xor");
+        printk("Using XOR parameter encryption\n");
+    }
+    else {
+        printk("Not using parameter encryption\n");
+    }
+    
+    /* Prompt for PK callbacks */
+    printk("Use PK callbacks? (y/n, default: n): ");
+    ret = poll_response(input, sizeof(input));
+    printk("Input: %s\n", input);
+    
+    if (input[0] == 'y' || input[0] == 'Y') {
+        strcpy(pkOption, "-pk");
+        printk("Using PK callbacks\n");
+    }
+    else {
+        printk("Using crypto callbacks (default)\n");
+    }
+    
+    /* Prompt for loop mode */
+    printk("Run in loop mode? (y/n, default: n): ");
+    ret = poll_response(input, sizeof(input));
+    printk("Input: %s\n", input);
+    
+    if (input[0] == 'y' || input[0] == 'Y') {
+        strcpy(loopOption, "-i");
+        printk("Running in loop mode\n");
+    }
+    else {
+        printk("Running once (default)\n");
+    }
+    
+    /* Prompt for self-signed certificates */
+    printk("Use self-signed certificates? (y/n, default: n): ");
+    ret = poll_response(input, sizeof(input));
+    printk("Input: %s\n", input);
+    
+    if (input[0] == 'y' || input[0] == 'Y') {
+        strcpy(selfSign, "-self");
+        printk("Using self-signed certificates\n");
+    }
+    else {
+        printk("Using CA-signed certificates (default)\n");
+    }
+    
+    /* Prompt for custom port */
+    printk("Use custom port? (y/n, default: n): ");
+    ret = poll_response(input, sizeof(input));
+    printk("Input: %s\n", input);
+    
+    if (input[0] == 'y' || input[0] == 'Y') {
+        char portNum[10];
+        printk("Enter port number (1024-65535, default: 11111): ");
+        ret = poll_response(portNum, sizeof(portNum));
+        printk("Port: %s\n", portNum);
+        
+        /* Validate port is a number and in valid range */
+        char* endptr;
+        long port = strtol(portNum, &endptr, 10);
+        if (*endptr != '\0' || port < 1024 || port > 65535) {
+            printk("Invalid port number, using default (11111)\n");
+        }
+        else {
+            snprintf(portOption, sizeof(portOption), "-p=%ld", port);
+            printk("Using custom port: %ld\n", port);
+        }
+    }
+    else {
+        printk("Using default port (11111)\n");
+    }
+    
+    /* Build argument array */
+    argv[0] = " ";  /* Program name placeholder */
+    argc = 1;
+    
+    /* Add arguments to array only if they're set */
+    if (strlen(keyType) > 0) {
+        argv[argc++] = keyType;
+    }
+    if (strlen(paramEnc) > 0) {
+        argv[argc++] = paramEnc;
+    }
+    if (strlen(pkOption) > 0) {
+        argv[argc++] = pkOption;
+    }
+    if (strlen(loopOption) > 0) {
+        argv[argc++] = loopOption;
+    }
+    if (strlen(selfSign) > 0) {
+        argv[argc++] = selfSign;
+    }
+    if (strlen(portOption) > 0) {
+        argv[argc++] = portOption;
+    }
+    
+    printk("Starting TLS server with %d options\n", argc-1);
+    
 
-    #if LOCAL_DEBUG
-        wolfSSL_Debugging_ON();
-    #endif
-
-    wolfSSL_Init();
-
-    /* Create a socket that uses an internet IPv4 address,
-     * Sets the socket to be stream based (TCP),
-     * 0 means choose the default protocol. */
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        printk("\nERROR: failed to create the socket\n");
-        return 1;
+    /** SD card mount **/
+    ret = mount_sd_card("SD");
+    if (ret != 0) {
+        printk("Failed to mount SD card\n");
+        return -1;
     }
 
-    ctx = wolfSSL_CTX_new(TLS_METHOD);
-    if (ctx == NULL) {
-        printk("\nERROR: Failed to create WOLFSSL_CTX\n");
-        return 1;
+    ret = TPM2_TLS_ServerArgs(NULL, argc, argv);
+    if (ret != 0) {
+        printk("Server failed with return: %d\n", ret);
+        return ret;
     }
 
-    if (wolfSSL_CTX_use_certificate_chain_buffer_format(ctx,
-                server_cert_der_2048, sizeof_server_cert_der_2048,
-                WOLFSSL_FILETYPE_ASN1) != WOLFSSL_SUCCESS){
-        printk("\nERROR: Cannot load server cert buffer\n");
-        return 1; 
+    ret = fs_unmount(&mp);
+    if (ret != 0) {
+        printk("Could not unmount file\n");
     }
 
-    if (wolfSSL_CTX_use_PrivateKey_buffer(ctx, server_key_der_2048,
-            sizeof_server_key_der_2048, SSL_FILETYPE_ASN1) != WOLFSSL_SUCCESS){
-        printk("\nERROR: Can't load server private key buffer");
-        return 1;
-    }
-
-    /* Initialize the server address struct with zeros */
-    memset(&servAddr, 0, sizeof(servAddr));
-
-    /* Fill in the server address */
-    servAddr.sin_family      = AF_INET;             /* using IPv4      */
-    servAddr.sin_port        = htons(DEFAULT_PORT); /* on DEFAULT_PORT */
-    servAddr.sin_addr.s_addr = INADDR_ANY;          /* from anywhere   */
-
-    /* Bind the server socket to our port */
-    if (bind(sockfd, (struct sockaddr*)&servAddr, sizeof(servAddr)) == -1) {
-        printk("\nERROR: failed to bind\n");
-        return 1;
-    }
-
-    /* Listen for a new connection, allow 5 pending connections */
-    if (listen(sockfd, 5) == -1) {
-        printk("\nERROR: failed to listen\n");
-        return 1;
-    } 
-
-    printk("\nServer Started\n");
-
-        /* Continue to accept clients until shutdown is issued */
-    while (!shutdown) {
-        printk("Waiting for a connection...\n");
-
-        /* Accept client connections */
-        if ((connd = accept(sockfd, (struct sockaddr*)&clientAddr, &size))
-            == -1) {
-            printk("\nERROR: failed to accept the connection\n");
-            return 1;
-        }
-
-        /* Create a WOLFSSL object */
-        if ((ssl = wolfSSL_new(ctx)) == NULL) {
-            printk("\nERROR: failed to create WOLFSSL object\n");
-            return 1;
-        }
-
-        /* Attach wolfSSL to the socket */
-        wolfSSL_set_fd(ssl, connd);
-
-        /* Establish TLS connection */
-        ret = wolfSSL_accept(ssl);
-        if (ret != WOLFSSL_SUCCESS) {
-            printk("\nERROR: wolfSSL_accept error = %d\n",
-                wolfSSL_get_error(ssl, ret));
-            return 1;
-        }
-
-
-        printk("Client connected successfully\n");
-
-        cipher = wolfSSL_get_current_cipher(ssl);
-        printk("SSL cipher suite is %s\n", wolfSSL_CIPHER_get_name(cipher));
-
-
-        /* Read the client data into our buff array */
-        memset(buff, 0, sizeof(buff));
-        if ((ret = wolfSSL_read(ssl, buff, sizeof(buff)-1)) == -1) {
-            printk("\nERROR: failed to read\n");
-            return 1;
-        }
-
-        /* Print to stdout any data the client sends */
-        printk("Client: %s\n", buff);
-
-        /* Check for server shutdown command */
-        if (strncmp(buff, "shutdown", 8) == 0) {
-            printk("Shutdown command issued!\n");
-            shutdown = 1;
-        }
-
-
-
-        /* Write our reply into buff */
-        memset(buff, 0, sizeof(buff));
-        memcpy(buff, reply, strlen(reply));
-        len = strnlen(buff, sizeof(buff));
-
-        /* Reply back to the client */
-        if ((ret = wolfSSL_write(ssl, buff, len)) != len) {
-            printk("\nERROR: failed to write\n");
-            return 1;
-        }
-
-        /* Notify the client that the connection is ending */
-        wolfSSL_shutdown(ssl);
-        printk("Shutdown complete\n");
-
-        /* Cleanup after this connection */
-        wolfSSL_free(ssl);      /* Free the wolfSSL object              */
-        ssl = NULL;
-        close(connd);           /* Close the connection to the client   */
-    }
-
-    return 0;
+    return ret;
 }
 
 
@@ -637,7 +741,7 @@ int runKeygen(void)
     }
 
     /* Prompt for output file location */
-    printk("Enter output file name (default: keyblob.bin): ");
+    printk("Enter output file name (default: /SD:/keyblob.bin): ");
     ret = poll_response(input, sizeof(input));
     if (strlen(input) > 0) {
         strcpy(outputFile, input);
@@ -752,6 +856,7 @@ void list_of_commands(void)
     printk("  -native: Run a native test\n");
     printk("  -keygen: Generate a key\n");
     printk("  -tpmclear: Clear the TPM\n");
+    printk("  -server: Start the server\n");
     printk("  -exit: Exit the program\n");
     printk("  -help: List of commands\n");
 }
@@ -762,6 +867,14 @@ int main(void)
 
     int ret = 0;
     char input[128];
+
+    /* Start up the network */
+    if (startNetwork() != 0){
+        printf("Network Initialization via DHCP Failed");
+        return 1;
+    }
+
+    set_time_using_ntp(resolve_hostname("pool.ntp.org"));
 
     k_msleep(5000);
     list_of_commands();
@@ -811,6 +924,13 @@ int main(void)
             ret = tpmClear();
             if (ret != 0) {
                 printk("TPM clear failed with return: %d", ret);
+                break;
+            }
+        }
+        else if (strcmp(input, "-server") == 0) {
+            ret = startServer();
+            if (ret != 0) {
+                printk("Server failed with return: %d", ret);
                 break;
             }
         }
