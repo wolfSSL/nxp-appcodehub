@@ -6,22 +6,7 @@
 
 To use this demo you need the following branches untill wolfSSL and wolfTPM are
 updated to support Zephyr for the DEMO:
-
-
-1. wolfSSL in the `west.yml` needs to be updated to use the following branch:
-This only needs to happen if this
-(PR)[https://github.com/wolfSSL/wolfssl/pull/8531] is not merged:
-
-    remotes:
-        - name: wolfssl
-          url-base: https://github.com/night1rider
-    projects:
-        - name: wolfssl
-          path: modules/crypto/wolfssl
-          revision: zephyr-fs-rewind-fix
-          remote: wolfssl
-
-2. wolfTPM in the `west.yml` needs to be updated to use the following branch:
+1. wolfTPM in the `west.yml` needs to be updated to use the following branch:
 This only needs to happen if this
 (PR)[https://github.com/wolfSSL/wolfTPM/pull/395] is not merged:
 
