@@ -4,7 +4,7 @@
 
 ## NOTICE
 
-To use this demo you need the following branches untill wolfSSL and wolfTPM are
+To use this demo you need the following branches until wolfSSL and wolfTPM are
 updated to support Zephyr for the DEMO:
 1. wolfTPM in the `west.yml` needs to be updated to use the following branch:
 This only needs to happen if this
@@ -137,7 +137,7 @@ For detailed help:
 ### 3.4 Program and Run the Demo
 1. Flash the .elf to FRDM-MCXN947, Can be done with right clicking the project and choosing to `flash the selected target`
 2. Connect to the Serial Output of the FRDM-MCXN947 via:
-    - Screen Command - `screen /dev/tty"MCXN-Port 115200`
+    - Screen Command - `screen /dev/tty"MCXN-Port" 115200`
     - Some Serial Terminal you are familiar with 
 3. Push reset button on the FRDM-MCXN947 board and view the startup message with available commands.
 
@@ -286,13 +286,13 @@ By following these three steps manually, you have complete control over each par
 6. Make sure the server is running on zephyr via the `-server` or `-demo` command
 7. Connect with the client
     ```
-    ./example/client/client -h <ip of zephyr device as displaced at boot> -A <path/to/cert.pem/you/saved>
+    ./example/client/client -h <ip of zephyr device as displaced at boot> -A <path/to/cert.pem/you/saved> -w
     ```
 
 
 ## 5. Project Options<a name="step5"></a>
 ### 5.1 Setting up a static IPv4 on Zephyr
-By default the project is setup to use a DHCP Server, this section will show how to setup a static IP. Please make sure you chose an IP for the device that will not cause a IP confilct on your network.
+By default the project is set up to use a DHCP Server, this section will show how to set up a static IP. Please make sure you choose an IP for the device that will not cause an IP conflict on your network.
 
 1. In [src/main.c](src/main.c), look for the following section.
 
@@ -308,7 +308,7 @@ By default the project is setup to use a DHCP Server, this section will show how
 
 3. Set the `STATIC_IPV4_ADDR` macro to your desired IP, by default it is set to `192.168.1.70`. Make sure the IP you choose does not cause a conflict on your network.
 
-4. Set the `STATIC_IPV4_GATEWAY` macro to your network's gateway. Usally this is `192.168.1.1` on home networks, however this could not always be the case. This is usally the IP of your primary network router.
+4. Set the `STATIC_IPV4_GATEWAY` macro to your network's gateway. Usually this is `192.168.1.1` on home networks, however this could not always be the case. This is usually the IP of your primary network router.
 
 5. Set the `STATIC_IPV4_NETMASK` macro to your needs. Generally `255.255.255.0` for most use cases.
 
