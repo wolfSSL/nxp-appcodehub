@@ -43,30 +43,32 @@
 /* Standard Packages Start */
 #include <stdio.h>
 #include <time.h>
+#include <ff.h>
 /* Standard Packages End */
 
 /* Zephyr Includes Start */
-#include <zephyr/kernel.h>
+#include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/net/net_if.h>
-#include <zephyr/net/dhcpv4.h>
-#include <zephyr/net/net_core.h>
-#include <zephyr/net/net_context.h>
-#include <zephyr/net/net_mgmt.h>
-#include <zephyr/net/net_config.h>
-#include <zephyr/net/net_ip.h>
 #include <zephyr/drivers/uart.h>
-#include <zephyr/net/socket.h>
-#include <zephyr/net/sntp.h>
+#include <zephyr/fs/fs.h>
+#include <zephyr/kernel.h>
+#include <zephyr/net/dhcpv4.h>
 #include <zephyr/net/dns_resolve.h>
+#include <zephyr/net/net_config.h>
+#include <zephyr/net/net_context.h>
+#include <zephyr/net/net_core.h>
+#include <zephyr/net/net_if.h>
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/net_mgmt.h>
+#include <zephyr/net/sntp.h>
+#include <zephyr/net/socket.h>
+#include <zephyr/posix/time.h>
+#include <zephyr/storage/disk_access.h>
+#include <zephyr/sys/timeutil.h>
 /* Zephyr Includes End */
 
 
-#include <zephyr/device.h>
-#include <zephyr/storage/disk_access.h>
-#include <zephyr/fs/fs.h>
-#include <zephyr/drivers/gpio.h>
-#include <ff.h>
+
 
 /* Program Defines Start */
 
@@ -82,7 +84,7 @@
 
 /* Use DHCP auto ip assignment or static assignment */
 #ifndef  DHCP_ON
-    #define DHCP_ON 0   /* Set to true (1) if you want auto assignment ip, */ 
+    #define DHCP_ON 1   /* Set to true (1) if you want auto assignment ip, */ 
                         /* set false (0) for staticly define. */
                         /* Make sure to avoid IP conflicts on the network you */
                         /* assign this to, check the defaults before using. */
@@ -137,6 +139,128 @@ static struct fs_mount_t mp = {
     .type = FS_FATFS,
     .fs_data = &fat_fs,
 };
+
+
+
+/* Forward declarations for functions called by main() */
+int startNetwork(void);
+int poll_response(char* input, int len);
+void list_of_commands(void);
+int fullDemo(void);
+int runBenchmark(void);
+int generateCSR(void);
+int runWrapTest(void);
+int runNativeTest(void);
+int runKeygen(void);
+int tpmClear(void);
+int startServer(void);
+void setTime(void);
+void set_time_manually(int month, int day, int year, int hour, int minute, int second);
+#if NO_INTERNET == 0
+void set_time_using_ntp(const char* ntp_server);
+char* resolve_hostname(const char *hostname);
+#endif
+int mount_sd_card(char* disk_name);
+
+
+int main(void)
+{
+
+    int ret = 0;
+    char input[128];
+
+    /* Start up the network */
+    if (startNetwork() != 0){
+        printf("Network Initialization via DHCP Failed");
+        return 1;
+    }
+
+    #if NO_INTERNET == 0
+        /* If NO_INTERNET is false , we will use the internet to set the time */
+        set_time_using_ntp(resolve_hostname("pool.ntp.org"));
+    #else
+        /* If NO_INTERNET is true, we will set the time manually */
+        set_time_manually(1, 1, 2025, 12, 0, 0); /* Set the time to 1st January 2025 12:00:00 */
+    #endif
+
+    k_msleep(5000);
+    list_of_commands();
+
+
+    /* Main loop for demo commands*/
+    while (1) {
+        printk("\nEnter command: ");
+        poll_response(input, sizeof(input));
+
+        if (strcmp(input, "-demo") == 0) {
+            ret = fullDemo();
+            if (ret != 0) {
+                printk("Full demo failed with return: %d", ret);
+            }
+        }
+        else if (strcmp(input, "-bench") == 0) {
+            ret = runBenchmark();
+            if (ret != 0) {
+                printk("Benchmark failed with return: %d", ret);
+            }
+        }
+        if (strcmp(input, "-cert") == 0) {
+            ret = generateCSR();
+            if (ret != 0) {
+                printk("CSR generation failed with return: %d", ret);
+            }
+        }
+        else if (strcmp(input, "-wrap") == 0) {
+            ret = runWrapTest();
+            if (ret != 0) {
+                printk("Wrap test failed with return: %d", ret);
+            }
+        }
+        else if (strcmp(input, "-keygen") == 0) {
+            ret = runKeygen();
+            if (ret != 0) {
+                printk("Key generation failed with return code: %d\n", ret);
+            }
+        }
+        else if (strcmp(input, "-native") == 0) {
+            ret = runNativeTest();
+            if (ret != 0) {
+                printk("Native test failed with return: %d", ret);
+            }
+        }
+        else if (strcmp(input, "-tpmclear") == 0) {
+            ret = tpmClear();
+            if (ret != 0) {
+                printk("TPM clear failed with return: %d", ret);
+            }
+        }
+        else if (strcmp(input, "-server") == 0) {
+            ret = startServer();
+            if (ret != 0) {
+                printk("Server failed with return: %d", ret);
+            }
+        }
+        else if (strcmp(input, "-time") == 0) {
+            setTime();
+        }
+
+        else if (strcmp(input, "-help") == 0) {
+            list_of_commands();
+        }
+        else if (strcmp(input, "-exit") == 0) {
+            break;
+        }
+        else {
+            printk("Invalid command\n");
+            list_of_commands();
+        }
+    }
+
+    printk("\nFinished wolfTPM Example on the %s!\n", CONFIG_BOARD);
+
+    return 0;
+
+}
 
 
 #if NO_INTERNET == 0
@@ -427,11 +551,10 @@ int startServer(void)
     ret = TPM2_TLS_ServerArgs(NULL, argc, argv);
     if (ret != 0) {
         printk("Server failed with return: %d\n", ret);
-        return ret;
+          /* Unmount SD card */
     }
 
-    ret = fs_unmount(&mp);
-    if (ret != 0) {
+    if (fs_unmount(&mp) != 0) {
         printk("Could not unmount file\n");
     }
 
@@ -550,10 +673,8 @@ int poll_response(char* input, int len)
 int generateCSR(void)
 {
     int ret = 0;
-    struct fs_file_t data_filp;
     char* argv[] = {" ", "-cert"};
     int argc = sizeof(argv) / sizeof(argv[0]);
-    struct fs_dirent stat;
 
     /** SD card mount **/
     ret = mount_sd_card("SD");
@@ -561,8 +682,6 @@ int generateCSR(void)
         printk("Failed to mount SD card\n");
         return -1;
     }
-
-
 
     ret = TPM2_CSR_ExampleArgs(NULL, argc, argv);
     if (ret != 0) {
@@ -811,7 +930,17 @@ int runKeygen(void)
     
     /* Check and delete output file if it exists */
     /* Format path with mount point for Zephyr filesystem operations */
-    char fullPath[40];
+    char fullPath[256]; /* Significantly increased buffer size to handle longer paths */
+    size_t required_size = strlen(disk_mount_pt) + strlen(outputFile) + 2; /* +2 for slash and null terminator */
+    
+    if (required_size > sizeof(fullPath)) {
+        printk("Path too long for buffer: needed %zu bytes, have %zu bytes\n", 
+               required_size, sizeof(fullPath));
+        fs_unmount(&mp);
+        return -1;
+    }
+    
+    /* Now safely create the full path */
     snprintf(fullPath, sizeof(fullPath), "%s/%s", disk_mount_pt, outputFile);
     /* Check if file exists */
     if (fs_stat(fullPath, &stat) == 0) {
@@ -1102,7 +1231,7 @@ void setTime(void)
     }
 }
 
-int fullDemo()
+int fullDemo(void)
 {
     int ret = 0;
     char input[2];
@@ -1110,8 +1239,7 @@ int fullDemo()
     int unmount_ret;
     
     /* For keygen */
-    char* keygen_argv[] = {"TPM2_Keygen", "/SD:/rsa.raw", "-rsa", \
-                                "-t=default", "-aes", "-pem"};
+    char* keygen_argv[] = {" ", "/SD:/rsa.raw", "-rsa", "-t", "-aes", "-pem"};
     int keygen_argc = sizeof(keygen_argv) / sizeof(keygen_argv[0]);
 
     /* For CSR - matching the exact pattern in generateCSR() */
@@ -1119,7 +1247,7 @@ int fullDemo()
     int csr_argc = sizeof(csr_argv) / sizeof(csr_argv[0]);
     
     /* For server */
-    char* server_argv[] = {"TPM2_TLS_Server", "-rsa", "-aes", "-pk", "-self", RSA_FILENAME};
+    char* server_argv[] = {" ", "-rsa", "-aes", "-pk", "-self", RSA_FILENAME};
     int server_argc = sizeof(server_argv) / sizeof(server_argv[0]);
 
     printk("\n=== Running Full Demo ===\n");
@@ -1210,97 +1338,3 @@ int fullDemo()
     return ret;
 }
 
-
-
-
-int main(void)
-{
-
-    int ret = 0;
-    char input[128];
-
-    /* Start up the network */
-    if (startNetwork() != 0){
-        printf("Network Initialization via DHCP Failed");
-        return 1;
-    }
-
-    #if NO_INTERNET == 0
-        /* If NO_INTERNET is false , we will use the internet to set the time */
-        set_time_using_ntp(resolve_hostname("pool.ntp.org"));
-    #else
-        /* If NO_INTERNET is true, we will set the time manually */
-        set_time_manually(1, 1, 2025, 12, 0, 0); /* Set the time to 1st January 2025 12:00:00 */
-    #endif
-
-    k_msleep(5000);
-    list_of_commands();
-
-
-    /* Main loop for demo commands*/
-    while (1) {
-        printk("\nEnter command: ");
-        poll_response(input, sizeof(input));
-        if (strcmp(input, "-bench") == 0) {
-            ret = runBenchmark();
-            if (ret != 0) {
-                printk("Benchmark failed with return: %d", ret);
-            }
-        }
-        if (strcmp(input, "-cert") == 0) {
-            ret = generateCSR();
-            if (ret != 0) {
-                printk("CSR generation failed with return: %d", ret);
-            }
-        }
-        else if (strcmp(input, "-wrap") == 0) {
-            ret = runWrapTest();
-            if (ret != 0) {
-                printk("Wrap test failed with return: %d", ret);
-            }
-        }
-        else if (strcmp(input, "-keygen") == 0) {
-            ret = runKeygen();
-            if (ret != 0) {
-                printk("Key generation failed with return: %d\n", ret);
-            }
-        }
-        else if (strcmp(input, "-native") == 0) {
-            ret = runNativeTest();
-            if (ret != 0) {
-                printk("Native test failed with return: %d", ret);
-            }
-        }
-        else if (strcmp(input, "-tpmclear") == 0) {
-            ret = tpmClear();
-            if (ret != 0) {
-                printk("TPM clear failed with return: %d", ret);
-            }
-        }
-        else if (strcmp(input, "-server") == 0) {
-            ret = startServer();
-            if (ret != 0) {
-                printk("Server failed with return: %d", ret);
-            }
-        }
-        else if (strcmp(input, "-time") == 0) {
-            setTime();
-        }
-
-        else if (strcmp(input, "-help") == 0) {
-            list_of_commands();
-        }
-        else if (strcmp(input, "-exit") == 0) {
-            break;
-        }
-        else {
-            printk("Invalid command\n");
-            list_of_commands();
-        }
-    }
-
-    printk("\nFinished wolfTPM Example on the %s!\n", CONFIG_BOARD);
-
-    return 0;
-
-}

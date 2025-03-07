@@ -112,12 +112,15 @@ The project should be called `dm-wolftpm-wolfssl-tls-with-zephyr`.
 ### 4.1 Interactive TPM Commands
 The demo provides an interactive shell with the following TPM commands:
 
+- `-demo`: Run the full demo
 - `-cert`: Generate a Certificate Signing Request (CSR) using TPM
 - `-bench`: Run TPM benchmarks with various options
 - `-wrap`: Run TPM key wrapping tests
 - `-native`: Run TPM native tests
 - `-keygen`: Generate keys using the TPM
 - `-tpmclear`: Clear the TPM
+- `-server`: Start the TLS server
+- `-time`: Set the time manually
 - `-exit`: Exit the program
 - `-help`: List available commands
 
@@ -129,9 +132,10 @@ The demo also includes a TLSv1.3 server that:
 
 To connect to the TLS server from a client:
 1. Note the IP address displayed on the device
+2. Note the Generated rsa.pem and ecc.pem
 2. Use the wolfSSL client application:
    ```
-   ./examples/client/client -h <device_ip> -v 4
+   ./examples/client/client -h <device_ip>
    ```
 
 ### 4.3 Key Generation
@@ -172,37 +176,6 @@ By default the project is setup to use a DHCP Server, this section will show how
 5. Set the `STATIC_IPV4_NETMASK` macro to your needs. Generally `255.255.255.0` for most use cases.
 
 6. Rebuild the project and flash the device.
-
-### 5.2 Changing the TLS Version
-The project allows configuring the TLS version used by the server:
-
-1. In [src/main.c](src/main.c) locate the TLS version macro:
-   ```c
-   #define TLS_VERSION 3
-   ```
-
-2. Change it to 2 for TLSv1.2 or leave it as 3 for TLSv1.3.
-
-3. When connecting with a client, make sure to specify the matching version:
-   ```
-   ./examples/client/client -h <device_ip> -v 4  # for TLSv1.3
-   ./examples/client/client -h <device_ip> -v 3  # for TLSv1.2
-   ```
-
-### 5.3 Changing the Server's Port
-If you want to change the port from the default `11111`:
-
-1. In [src/main.c](src/main.c) locate:
-   ```c
-   #define DEFAULT_PORT 11111
-   ```
-
-2. Change it to your desired port number.
-
-3. When connecting with a client, specify the port:
-   ```
-   ./examples/client/client -h <device_ip> -v 4 -p <port>
-   ```
 
 ## 6. Project Flowchart<a name="step6"></a>
 ### Overview
