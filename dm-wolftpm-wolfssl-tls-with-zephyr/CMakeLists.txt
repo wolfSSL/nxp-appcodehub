@@ -31,6 +31,9 @@ target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/keygen/keyload.
 target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/management/tpmclear.c)
 target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/management/flush.c)
 target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/tls/tls_server.c)
+target_sources(app PRIVATE __repo__/modules/lib/wolftpm/examples/tls/tls_client.c)
+target_sources(app PRIVATE __repo__/modules/crypto/wolfssl/wolfcrypt/test/test.c)
+target_sources(app PRIVATE __repo__/modules/crypto/wolfssl/wolfcrypt/benchmark/benchmark.c)
 
 target_include_directories(app PRIVATE src)
 target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples/wrap)
@@ -41,6 +44,8 @@ target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples/nat
 target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples/keygen)
 target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples/management)
 target_include_directories(app PRIVATE __repo__/modules/lib/wolftpm/examples/tls)
+target_include_directories(app PRIVATE __repo__/modules/crypto/wolfssl/wolfcrypt/test)
+target_include_directories(app PRIVATE __repo__/modules/crypto/wolfssl/wolfcrypt/benchmark)
 add_definitions(-DWOLFSSL_USER_SETTINGS)
 add_definitions(-DWOLFTPM_USER_SETTINGS)
 

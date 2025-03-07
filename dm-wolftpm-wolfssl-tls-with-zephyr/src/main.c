@@ -37,6 +37,8 @@
 #include <keygen.h>
 #include <management.h>
 #include <tls_server.h>
+#include <test.h>
+#include <benchmark.h>
 /* wolfTPM Includes End */
 
 
@@ -84,7 +86,7 @@
 
 /* Use DHCP auto ip assignment or static assignment */
 #ifndef  DHCP_ON
-    #define DHCP_ON 1   /* Set to true (1) if you want auto assignment ip, */ 
+    #define DHCP_ON 0   /* Set to true (1) if you want auto assignment ip, */ 
                         /* set false (0) for staticly define. */
                         /* Make sure to avoid IP conflicts on the network you */
                         /* assign this to, check the defaults before using. */
@@ -93,7 +95,7 @@
 
 #if DHCP_ON == 0
 /* Define Static IP, Gateway, and Netmask */
-    #define STATIC_IPV4_ADDR  "192.168.0.120"
+    #define STATIC_IPV4_ADDR  "192.168.0.44"
     #define STATIC_IPV4_GATEWAY "192.168.0.1"
     #define STATIC_IPV4_NETMASK "255.255.255.0"
 #endif
@@ -156,6 +158,8 @@ int tpmClear(void);
 int startServer(void);
 void setTime(void);
 void set_time_manually(int month, int day, int year, int hour, int minute, int second);
+int runWolfcryptTest(void);
+int runWolfcryptBenchmark(void);
 #if NO_INTERNET == 0
 void set_time_using_ntp(const char* ntp_server);
 char* resolve_hostname(const char *hostname);
@@ -192,28 +196,28 @@ int main(void)
         printk("\nEnter command: ");
         poll_response(input, sizeof(input));
 
-        if (strcmp(input, "-demo") == 0) {
-            ret = fullDemo();
-            if (ret != 0) {
-                printk("Full demo failed with return: %d", ret);
-            }
-        }
-        else if (strcmp(input, "-bench") == 0) {
+        if (strcmp(input, "-bench") == 0) {
             ret = runBenchmark();
             if (ret != 0) {
                 printk("Benchmark failed with return: %d", ret);
             }
         }
-        if (strcmp(input, "-cert") == 0) {
+        else if (strcmp(input, "-wolfcryptbench") == 0) {
+            ret = runWolfcryptBenchmark();
+            if (ret != 0) {
+                printk("Benchmark failed with return: %d", ret);
+            }
+        }
+        else if (strcmp(input, "-cert") == 0) {
             ret = generateCSR();
             if (ret != 0) {
                 printk("CSR generation failed with return: %d", ret);
             }
         }
-        else if (strcmp(input, "-wrap") == 0) {
-            ret = runWrapTest();
+        else if (strcmp(input, "-demo") == 0) {
+            ret = fullDemo();
             if (ret != 0) {
-                printk("Wrap test failed with return: %d", ret);
+                printk("Full demo failed with return: %d", ret);
             }
         }
         else if (strcmp(input, "-keygen") == 0) {
@@ -228,22 +232,33 @@ int main(void)
                 printk("Native test failed with return: %d", ret);
             }
         }
-        else if (strcmp(input, "-tpmclear") == 0) {
-            ret = tpmClear();
-            if (ret != 0) {
-                printk("TPM clear failed with return: %d", ret);
-            }
-        }
         else if (strcmp(input, "-server") == 0) {
             ret = startServer();
             if (ret != 0) {
                 printk("Server failed with return: %d", ret);
             }
         }
+        else if (strcmp(input, "-wolfcrypttest") == 0) {
+            ret = runWolfcryptTest();
+            if (ret != 0) {
+                printk("WolfCrypt test failed with return: %d", ret);
+            }
+        }
         else if (strcmp(input, "-time") == 0) {
             setTime();
         }
-
+        else if (strcmp(input, "-tpmclear") == 0) {
+            ret = tpmClear();
+            if (ret != 0) {
+                printk("TPM clear failed with return: %d", ret);
+            }
+        }
+        else if (strcmp(input, "-wrap") == 0) {
+            ret = runWrapTest();
+            if (ret != 0) {
+                printk("Wrap test failed with return: %d", ret);
+            }
+        }
         else if (strcmp(input, "-help") == 0) {
             list_of_commands();
         }
@@ -263,8 +278,66 @@ int main(void)
 }
 
 
+void list_of_commands(void)
+{
+    printk("Commands:\n");
+    printk("  -bench: Run a benchmark\n");
+    printk("  -cert: Generate a CSR\n");
+    printk("  -demo: Run the full demo\n");
+    printk("  -keygen: Generate a key\n");
+    printk("  -native: Run a native test\n");
+    printk("  -server: Start the server\n");
+    printk("  -time: Set the time\n");
+    printk("  -tpmclear: Clear the TPM\n");
+    printk("  -wrap: Run a wrap test\n");
+    printk("  -wolfcryptbench: Run the wolfcrypt benchmark\n");
+    printk("  -wolfcrypttest: Run the wolfcrypt test\n");
+    printk("  -help: List of commands\n");
+    printk("  -exit: Exit the program\n");
+}
+
+
+int runWolfcryptTest(void)
+{
+    int ret;
+
+    ret = mount_sd_card("SD");
+    if (ret != 0) {
+        printk("Failed to mount SD card\n");
+        return -1;
+    }
+
+    ret = wolfcrypt_test(NULL);
+
+    if (fs_unmount(&mp) != 0) {
+        printk("Could not unmount file\n");
+    }
+
+    return ret;
+}
+
+int runWolfcryptBenchmark(void)
+{
+    int ret;
+    
+    ret = mount_sd_card("SD");
+    if (ret != 0) {
+        printk("Failed to mount SD card\n");
+        return -1;
+    }
+
+    ret = benchmark_test(NULL);
+
+    if (fs_unmount(&mp) != 0) {
+        printk("Could not unmount file\n");
+    }
+
+    return ret;
+}
+
 #if NO_INTERNET == 0
-void set_time_using_ntp(const char* ntp_server) {
+void set_time_using_ntp(const char* ntp_server)
+{
     int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); /* NTP is UDP */
 
     // NTP server address
@@ -312,7 +385,8 @@ void set_time_using_ntp(const char* ntp_server) {
 #endif
 
 #if NO_INTERNET == 0
-char* resolve_hostname(const char *hostname) {
+char* resolve_hostname(const char *hostname)
+{
     static char ip_str[NET_IPV4_ADDR_LEN];
     struct addrinfo hints, *res;
     struct sockaddr_in *addr;
@@ -341,7 +415,8 @@ char* resolve_hostname(const char *hostname) {
 #endif
 
 /* Set up the network using the zephyr network stack */
-int startNetwork() {
+int startNetwork(void)
+{
 
     struct net_if *iface = net_if_get_default();
     char buf[NET_IPV4_ADDR_LEN];
@@ -993,21 +1068,6 @@ int runKeygen(void)
 }
 
 
-void list_of_commands(void)
-{
-    printk("Commands:\n");
-    printk("  -demo: Run the full demo\n");
-    printk("  -cert: Generate a CSR\n");
-    printk("  -bench: Run a benchmark\n");
-    printk("  -wrap: Run a wrap test\n");
-    printk("  -native: Run a native test\n");
-    printk("  -keygen: Generate a key\n");
-    printk("  -tpmclear: Clear the TPM\n");
-    printk("  -server: Start the server\n");
-    printk("  -exit: Exit the program\n");
-    printk("  -help: List of commands\n");
-    printk("  -time: Set the time\n");
-}
 
 void set_time_manually(int month, int day, int year, int hour, int minute, int second)
 {

@@ -60,6 +60,7 @@ extern "C" {
 #define NO_MAIN_FUNCTION
 #define NO_MAIN_DRIVER
 #define USE_CERT_BUFFERS_2048
+#define USE_CERT_BUFFERS_256
 #define USE_ANY_ADDR
 /* ------------------------------------------------------------------------- */
 /* Hardware */
@@ -173,9 +174,8 @@ extern "C" {
 #if 1
     #undef NO_RSA
     #define WC_RSA_BLINDING
-    //#define WC_RSA_NO_PADDING
+    #define WC_RSA_NO_PADDING
     #define RSA_LOW_MEM
-    //#define WC_NO_RSA_OAEP
 
     #if 1
         #define WOLFSSL_KEY_GEN /* For RSA Key gen only */
@@ -366,14 +366,26 @@ extern "C" {
     //#define WOLFSSL_SP_NO_MALLOC /* disable heap in wolf/SP math */
     //#define SP_DIV_WORD_USE_DIV /* no div64 */
 
+    #define WOLFSSL_SP_ARM_CORTEX_M_ASM
+
+    #define WOLFSSL_ARMASM
+    #define WOLFSSL_ARMASM_INLINE
+    #define WOLFSSL_ARMASM_NO_HW_CRYPTO
+    #define WOLFSSL_ARMASM_NO_NEON
+    #define WOLFSSL_ARM_ARCH 7
+    #define WOLFSSL_ARMASM_THUMB2
+
+
     #if 0
         /* optional speedup with inline assembly */
-        //#define WOLFSSL_SP_ARM_CORTEX_M_ASM /* Cortex-M3+ */
+        #define WOLFSSL_SP_ARM_CORTEX_M_ASM /* Cortex-M3+ */
         //#define WOLFSSL_SP_ARM_THUMB_ASM    /* Cortex-M0+ thumb */
         //#define WOLFSSL_SP_ARM32_ASM        /* Cortex-R */
         //#define WOLFSSL_SP_ARM64_ASM        /* Cortex-A */
         //#define WOLFSSL_SP_USE_UDIV
     #endif
+
+
 #endif
 
 /* ------------------------------------------------------------------------- */
@@ -438,6 +450,7 @@ extern "C" {
 
 #define WOLFTPM_CRYPTOCB
 #define WOLF_CRYPTO_CB
+#define WC_TEST_NO_CRYPTOCB_SW_TEST
 #define WOLFSSL_PUBLIC_MP
 
 
@@ -454,6 +467,8 @@ extern "C" {
 #define WOLFSSL_CERT_REQ
 #define WOLFSSL_CERT_EXT
 
+#define CERT_PREFIX "/SD:/"
+#define CERT_WRITE_TEMP_DIR "/SD:/"
 
 
 #define RSA_FILENAME "/SD:/rsa.raw"
@@ -474,13 +489,13 @@ extern "C" {
 #define AK_NAME_FILE "/SD:/ak.name"
 
 #define CA_RSA_CERT_PATH RSA_CERT_PEM
-#define WOLF_CA_RSA_CERT_PATH "/SD:/rcert.pem"
+#define WOLF_CA_RSA_CERT_PATH RSA_CERT_PEM
 #define CA_ECC_CERT_PATH ECC_CERT_PEM
-#define WOLF_CA_ECC_CERT_PATH "/SD:/ecert.pem"
+#define WOLF_CA_ECC_CERT_PATH ECC_CERT_PEM
 
-#define SERVER_RSA_CERT_PATH "/SD:/rcert.pem"
+#define SERVER_RSA_CERT_PATH RSA_CERT_PEM
 #define TPM_RSA_CERT_PATH RSA_CERT_PEM
-#define SERVER_ECC_CERT_PATH "/SD:/ecert.pem"
+#define SERVER_ECC_CERT_PATH ECC_CERT_PEM
 #define TPM_ECC_CERT_PATH ECC_CERT_PEM
 
 
