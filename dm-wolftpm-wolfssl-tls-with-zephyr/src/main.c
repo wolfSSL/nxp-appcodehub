@@ -74,20 +74,32 @@
 
 #define LOCAL_DEBUG 0       /* Use for wolfSSL's internal Debugging */
 
+#ifndef NO_INTERNET
+    #define NO_INTERNET 1
+#endif
+
+
+
 /* Use DHCP auto ip assignment or static assignment */
-#undef  DHCP_ON
-#define DHCP_ON 1   /* Set to true (1) if you want auto assignment ip, */ 
-                    /* set false (0) for staticly define. */
-                    /* Make sure to avoid IP conflicts on the network you */
-                    /* assign this to, check the defaults before using. */
-                    /* If unsure leave DHCP_ON set to 1 */
- 
+#ifndef  DHCP_ON
+    #define DHCP_ON 0   /* Set to true (1) if you want auto assignment ip, */ 
+                        /* set false (0) for staticly define. */
+                        /* Make sure to avoid IP conflicts on the network you */
+                        /* assign this to, check the defaults before using. */
+                        /* If unsure leave DHCP_ON set to 1 */
+#endif
+
 #if DHCP_ON == 0
 /* Define Static IP, Gateway, and Netmask */
-    #define STATIC_IPV4_ADDR  "192.168.0.70"
+    #define STATIC_IPV4_ADDR  "192.168.0.120"
     #define STATIC_IPV4_GATEWAY "192.168.0.1"
     #define STATIC_IPV4_NETMASK "255.255.255.0"
-    #define DNS_SERVER_ADDR "8.8.8.8"
+#endif
+
+#if NO_INTERNET == 0
+#if DHCP_ON == 0
+        #define DNS_SERVER_ADDR "8.8.8.8"
+#endif
 #endif
 
 /* Set the TLS Version Currently only 2 or 3 is avaliable for this */
@@ -105,8 +117,10 @@
     #define TLS_METHOD wolfTLSv1_3_server_method()
 #endif
 
-#define NTP_TIMESTAMP_DELTA 2208988800ull
-#define DNS_TIMEOUT 2000
+#if NO_INTERNET == 0
+    #define NTP_TIMESTAMP_DELTA 2208988800ull
+    #define DNS_TIMEOUT 2000
+#endif
 
 
 #define BENCHMARK_PROMPT "Enter benchmark type (-h,-aes or -xor): "
@@ -115,6 +129,7 @@
 #define NATIVE_PROMPT "Enter native test option (-h,-aes or -xor): "
 #define KEYGEN_PROMPT "Enter a Keygen Option (-h for help)"
 #define SERVER_PROMPT "Enter a Server Option (-h for help)"
+#define TIME_PROMPT "Enter a Time Option (-h for help)"
 
 static FATFS fat_fs;
 /* mounting info */
@@ -124,7 +139,7 @@ static struct fs_mount_t mp = {
 };
 
 
-
+#if NO_INTERNET == 0
 void set_time_using_ntp(const char* ntp_server) {
     int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); /* NTP is UDP */
 
@@ -170,7 +185,9 @@ void set_time_using_ntp(const char* ntp_server) {
 
     close(sockfd);
 }
+#endif
 
+#if NO_INTERNET == 0
 char* resolve_hostname(const char *hostname) {
     static char ip_str[NET_IPV4_ADDR_LEN];
     struct addrinfo hints, *res;
@@ -197,7 +214,7 @@ char* resolve_hostname(const char *hostname) {
 
     return ip_str;
 }
-
+#endif
 
 /* Set up the network using the zephyr network stack */
 int startNetwork() {
@@ -279,7 +296,7 @@ int startServer(void)
     /* Process key type selection */
     if (input[0] == 'h' || input[0] == 'H') {
         /* Call server with help flag */
-        argv[0] = " ";
+        argv[0] = "TPM2_TLS_Server";
         argv[1] = "-h";
         return TPM2_TLS_ServerArgs(NULL, 2, argv);
     }
@@ -374,7 +391,7 @@ int startServer(void)
     }
     
     /* Build argument array */
-    argv[0] = " ";  /* Program name placeholder */
+    argv[0] = "TPM2_TLS_Server";  /* Proper program name instead of placeholder */
     argc = 1;
     
     /* Add arguments to array only if they're set */
@@ -850,6 +867,7 @@ int runKeygen(void)
 void list_of_commands(void)
 {
     printk("Commands:\n");
+    printk("  -demo: Run the full demo\n");
     printk("  -cert: Generate a CSR\n");
     printk("  -bench: Run a benchmark\n");
     printk("  -wrap: Run a wrap test\n");
@@ -859,7 +877,340 @@ void list_of_commands(void)
     printk("  -server: Start the server\n");
     printk("  -exit: Exit the program\n");
     printk("  -help: List of commands\n");
+    printk("  -time: Set the time\n");
 }
+
+void set_time_manually(int month, int day, int year, int hour, int minute, int second)
+{
+    struct tm time_info;
+    time_t timestamp;
+    struct timespec ts;
+    
+    // Convert to tm structure format
+    time_info.tm_year = year - 1900;  // Years since 1900
+    time_info.tm_mon = month - 1;     // Month (0-11)
+    time_info.tm_mday = day;          // Day of month (1-31)
+    time_info.tm_hour = hour;         // Hours (0-23)
+    time_info.tm_min = minute;        // Minutes (0-59)
+    time_info.tm_sec = second;        // Seconds (0-59)
+    time_info.tm_isdst = -1;          // Let the system determine DST
+    
+    // Convert to Unix timestamp
+    timestamp = timeutil_timegm(&time_info);
+    
+    ts.tv_sec = timestamp;
+    ts.tv_nsec = 0;
+    
+    clock_settime(CLOCK_REALTIME, &ts);
+    printk("System time set manually to %04d-%02d-%02d %02d:%02d:%02d\n", 
+           year, month, day, hour, minute, second);
+}
+
+void setTime(void)
+{
+    char input[16];
+    int month, day, year, hour, minute, second;
+    int max_days;
+    int i;
+    bool valid;
+    bool leap_year;
+
+    printk("\n=== Manual Time Setting ===\n");
+
+    /* Get month */
+    valid = false;
+    while (!valid) {
+        printk("Enter month (1-12): ");
+        poll_response(input, sizeof(input));
+        
+        valid = true;
+        /* Check if input is a valid integer */
+        for (i = 0; input[i] != '\0' && i < sizeof(input); i++) {
+            if (input[i] < '0' || input[i] > '9') {
+                valid = false;
+                break;
+            }
+        }
+        
+        if (valid) {
+            month = atoi(input);
+            valid = (month >= 1 && month <= 12);
+        }
+        
+        if (!valid) {
+            printk("Invalid month. Please enter a value between 1 and 12.\n");
+        }
+    }
+
+    /* Get day */
+    valid = false;
+    while (!valid) {
+        printk("Enter day (1-31): ");
+        poll_response(input, sizeof(input));
+        
+        valid = true;
+        /* Check if input is a valid integer */
+        for (i = 0; input[i] != '\0' && i < sizeof(input); i++) {
+            if (input[i] < '0' || input[i] > '9') {
+                valid = false;
+                break;
+            }
+        }
+        
+        if (valid) {
+            day = atoi(input);
+            valid = (day >= 1 && day <= 31);
+        }
+        
+        if (!valid) {
+            printk("Invalid day. Please enter a value between 1 and 31.\n");
+        }
+    }
+
+    /* Get year */
+    valid = false;
+    while (!valid) {
+        printk("Enter year (2000-2099): ");
+        poll_response(input, sizeof(input));
+        
+        valid = true;
+        /* Check if input is a valid integer */
+        for (i = 0; input[i] != '\0' && i < sizeof(input); i++) {
+            if (input[i] < '0' || input[i] > '9') {
+                valid = false;
+                break;
+            }
+        }
+        
+        if (valid) {
+            year = atoi(input);
+            valid = (year >= 2000 && year <= 2099);
+        }
+        
+        if (!valid) {
+            printk("Invalid year. Please enter a value between 2000 and 2099.\n");
+        }
+    }
+
+    /* Validate date further for month-specific day ranges */
+    leap_year = ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0);
+    
+    switch (month) {
+        case 4: case 6: case 9: case 11:
+            max_days = 30;
+            break;
+        case 2:
+            max_days = leap_year ? 29 : 28;
+            break;
+        default:
+            max_days = 31;
+    }
+    
+    if (day > max_days) {
+        printk("Invalid date: %d-%02d-%d has at most %d days. Setting to last day of month.\n", 
+               year, month, day, max_days);
+        day = max_days;
+    }
+
+    /* Get hour */
+    valid = false;
+    while (!valid) {
+        printk("Enter hour (0-23): ");
+        poll_response(input, sizeof(input));
+        
+        valid = true;
+        /* Check if input is a valid integer */
+        for (i = 0; input[i] != '\0' && i < sizeof(input); i++) {
+            if (input[i] < '0' || input[i] > '9') {
+                valid = false;
+                break;
+            }
+        }
+        
+        if (valid) {
+            hour = atoi(input);
+            valid = (hour >= 0 && hour <= 23);
+        }
+        
+        if (!valid) {
+            printk("Invalid hour. Please enter a value between 0 and 23.\n");
+        }
+    }
+
+    /* Get minute */
+    valid = false;
+    while (!valid) {
+        printk("Enter minute (0-59): ");
+        poll_response(input, sizeof(input));
+        
+        valid = true;
+        /* Check if input is a valid integer */
+        for (i = 0; input[i] != '\0' && i < sizeof(input); i++) {
+            if (input[i] < '0' || input[i] > '9') {
+                valid = false;
+                break;
+            }
+        }
+        
+        if (valid) {
+            minute = atoi(input);
+            valid = (minute >= 0 && minute <= 59);
+        }
+        
+        if (!valid) {
+            printk("Invalid minute. Please enter a value between 0 and 59.\n");
+        }
+    }
+
+    /* Get second */
+    valid = false;
+    while (!valid) {
+        printk("Enter second (0-59): ");
+        poll_response(input, sizeof(input));
+        
+        valid = true;
+        /* Check if input is a valid integer */
+        for (i = 0; input[i] != '\0' && i < sizeof(input); i++) {
+            if (input[i] < '0' || input[i] > '9') {
+                valid = false;
+                break;
+            }
+        }
+        
+        if (valid) {
+            second = atoi(input);
+            valid = (second >= 0 && second <= 59);
+        }
+        
+        if (!valid) {
+            printk("Invalid second. Please enter a value between 0 and 59.\n");
+        }
+    }
+
+    /* Confirm setting time */
+    printk("\nSetting time to: %04d-%02d-%02d %02d:%02d:%02d\n", 
+           year, month, day, hour, minute, second);
+    printk("Press 'y' to confirm, any other key to cancel: ");
+    poll_response(input, sizeof(input));
+    
+    if (input[0] == 'y' || input[0] == 'Y') {
+        set_time_manually(month, day, year, hour, minute, second);
+        printk("Time set successfully!\n");
+    }
+    else {
+        printk("Time setting canceled.\n");
+    }
+}
+
+int fullDemo()
+{
+    int ret = 0;
+    char input[2];
+    int regenerate_cert = 0;  /* Using int instead of bool: 0=false, 1=true */
+    int unmount_ret;
+    
+    /* For keygen */
+    char* keygen_argv[] = {"TPM2_Keygen", "/SD:/rsa.raw", "-rsa", \
+                                "-t=default", "-aes", "-pem"};
+    int keygen_argc = sizeof(keygen_argv) / sizeof(keygen_argv[0]);
+
+    /* For CSR - matching the exact pattern in generateCSR() */
+    char* csr_argv[] = {" ", "-cert"};
+    int csr_argc = sizeof(csr_argv) / sizeof(csr_argv[0]);
+    
+    /* For server */
+    char* server_argv[] = {"TPM2_TLS_Server", "-rsa", "-aes", "-pk", "-self", RSA_FILENAME};
+    int server_argc = sizeof(server_argv) / sizeof(server_argv[0]);
+
+    printk("\n=== Running Full Demo ===\n");
+
+        /* Mount SD card */
+    ret = mount_sd_card("SD");
+    if (ret != 0) {
+        printk("Failed to mount SD card. Aborting demo.\n");
+        return ret;
+    }
+
+    /* Prompt user if they want to regenerate the certificate */
+    printk("Do you want to regenerate the certificate? (y/n, default: n): ");
+    poll_response(input, sizeof(input));
+    
+    if (input[0] == 'y' || input[0] == 'Y') {
+        regenerate_cert = 1;
+    }
+    else {
+        regenerate_cert = 0;
+    }
+
+    if (regenerate_cert) {
+        printk("\n--- Starting Key Generation ---\n");
+        printk("Generating RSA key with AES parameter encryption and PEM output...\n");
+
+        /* Call the keygen function */
+        printk("Generating key...\n");
+        ret = TPM2_Keygen_Example(NULL, keygen_argc, keygen_argv);
+        
+        if (ret != 0) {
+            printk("Key generation failed with return code: %d\n", ret);
+            /* Unmount SD card before returning */
+            unmount_ret = fs_unmount(&mp);
+            if (unmount_ret != 0) {
+                printk("Could not unmount SD card\n");
+            }
+            return ret;
+        }
+        else {
+            printk("Key generation completed successfully\n");
+        }
+
+        printk("\n--- Generating Certificate ---\n");
+        
+        /* Call the CSR generation function using the exact pattern from generateCSR() */
+        ret = TPM2_CSR_ExampleArgs(NULL, csr_argc, csr_argv);
+        
+        if (ret != 0) {
+            printk("Certificate generation failed with return code: %d\n", ret);
+            /* Unmount SD card before returning */
+            unmount_ret = fs_unmount(&mp);
+            if (unmount_ret != 0) {
+                printk("Could not unmount SD card\n");
+            }
+            return ret;
+        }
+        else {
+            printk("Certificate generation completed successfully\n");
+        }
+    }
+    
+    /* Step 3: Start the TLS server */
+    printk("\n--- Starting TLS Server ---\n");
+    printk("Using RSA key, AES parameter encryption, PK callbacks, self-signed certificates\n");
+    
+    /* Call the server function */
+    printk("Starting TLS server...\n");
+    ret = TPM2_TLS_ServerArgs(NULL, server_argc, server_argv);
+    
+    if (ret != 0) {
+        printk("Server execution failed with return code: %d\n", ret);
+    }
+    else {
+        printk("Server execution completed successfully\n");
+    }
+    
+    /* Unmount SD card */
+    unmount_ret = fs_unmount(&mp);
+    if (unmount_ret != 0) {
+        printk("Could not unmount SD card\n");
+        if (ret == 0) {
+            ret = unmount_ret; /* Only overwrite ret if it was successful */
+        }
+    }
+    
+    printk("\n=== Full Demo Completed ===\n");
+    return ret;
+}
+
+
 
 
 int main(void)
@@ -874,7 +1225,13 @@ int main(void)
         return 1;
     }
 
-    set_time_using_ntp(resolve_hostname("pool.ntp.org"));
+    #if NO_INTERNET == 0
+        /* If NO_INTERNET is false , we will use the internet to set the time */
+        set_time_using_ntp(resolve_hostname("pool.ntp.org"));
+    #else
+        /* If NO_INTERNET is true, we will set the time manually */
+        set_time_manually(1, 1, 2025, 12, 0, 0); /* Set the time to 1st January 2025 12:00:00 */
+    #endif
 
     k_msleep(5000);
     list_of_commands();
@@ -884,61 +1241,57 @@ int main(void)
     while (1) {
         printk("\nEnter command: ");
         poll_response(input, sizeof(input));
-
+        if (strcmp(input, "-bench") == 0) {
+            ret = runBenchmark();
+            if (ret != 0) {
+                printk("Benchmark failed with return: %d", ret);
+            }
+        }
         if (strcmp(input, "-cert") == 0) {
             ret = generateCSR();
             if (ret != 0) {
                 printk("CSR generation failed with return: %d", ret);
-                break;
-            }
-        }
-        else if (strcmp(input, "-bench") == 0) {
-            ret = runBenchmark();
-            if (ret != 0) {
-                printk("Benchmark failed with return: %d", ret);
-                break;
             }
         }
         else if (strcmp(input, "-wrap") == 0) {
             ret = runWrapTest();
             if (ret != 0) {
                 printk("Wrap test failed with return: %d", ret);
-                break;
             }
         }
         else if (strcmp(input, "-keygen") == 0) {
             ret = runKeygen();
             if (ret != 0) {
                 printk("Key generation failed with return: %d\n", ret);
-                break;
             }
         }
         else if (strcmp(input, "-native") == 0) {
             ret = runNativeTest();
             if (ret != 0) {
                 printk("Native test failed with return: %d", ret);
-                break;
             }
         }
         else if (strcmp(input, "-tpmclear") == 0) {
             ret = tpmClear();
             if (ret != 0) {
                 printk("TPM clear failed with return: %d", ret);
-                break;
             }
         }
         else if (strcmp(input, "-server") == 0) {
             ret = startServer();
             if (ret != 0) {
                 printk("Server failed with return: %d", ret);
-                break;
             }
+        }
+        else if (strcmp(input, "-time") == 0) {
+            setTime();
+        }
+
+        else if (strcmp(input, "-help") == 0) {
+            list_of_commands();
         }
         else if (strcmp(input, "-exit") == 0) {
             break;
-        }
-        else if (strcmp(input, "-help") == 0) {
-            list_of_commands();
         }
         else {
             printk("Invalid command\n");
