@@ -1,0 +1,41 @@
+manifest:
+  defaults:
+    remote: zephyrproject-rtos
+
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+    - name: wolfssl
+      url-base: https://github.com/wolfssl
+    - name: wolfssh
+      url-base: https://github.com/wolfssl
+    - name: wolfmqtt
+      url-base: https://github.com/wolfssl
+    - name: wolftpm
+      url-base: https://github.com/wolfssl
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v4.0.0
+      import:
+        - name-allowlist:
+          - hal_nxp
+          - cmsis
+          - segger
+    - name: wolfssl
+      path: modules/crypto/wolfssl
+      revision: master
+      remote: wolfssl
+    - name: wolfssh
+      path: modules/lib/wolfssh
+      revision: v1.4.18-stable
+      remote: wolfssh
+    - name: wolfmqtt
+      path: modules/lib/wolfmqtt
+      revision: v1.19.1
+      remote: wolfmqtt
+    - name: wolftpm
+      path: modules/lib/wolftpm
+      revision: master
+      remote: wolftpm

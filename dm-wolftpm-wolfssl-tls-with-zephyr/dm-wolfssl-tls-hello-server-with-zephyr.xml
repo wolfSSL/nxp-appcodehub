@@ -1,0 +1,25 @@
+<data:item xmlns:data="data" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="data ../../xsd/alp.xsd" type="demo" format="zephyr" versionSchema="1.0.0" name="wolfssl tls hello server with zephyr" uuid="ec02bcb0-84bc-4dcb-9098-bdaba3d2d7e1">
+    <display_title>
+        wolfSSL TLSv1.3 Hello Server using Zephyr RTOS
+    </display_title>
+    <overview>
+        <![CDATA[Creating a simple server using the Zephyr RTOS and wolfSSL to utilize the networking capabilities of the FRDM-MCXN947 through its ethernet port.]]>
+    </overview>
+    <toolchains>
+        <toolchain name="vscode"></toolchain>
+    </toolchains>
+    <families>
+        <family name="mcx"></family>
+    </families>
+    <nxp_compatible_hw>
+        <hw id="FRDM-MCXN947"></hw>
+    </nxp_compatible_hw>
+    <peripherals>
+        <peripheral name="ethernet"></peripheral>
+        <peripheral name="uart"></peripheral>
+    </peripherals>
+    <categories>
+        <category name="networking"></category>
+        <category name="rtos"></category>
+    </categories>
+</data:item>
