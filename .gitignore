@@ -1,4 +1,5 @@
 **/build
 **/__repo__
 **/.vscode
-
+**/CMakePresets.json
+**/mcux_include.json
