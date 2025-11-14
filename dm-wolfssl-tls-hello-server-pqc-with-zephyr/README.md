@@ -45,9 +45,6 @@ It starts with running our benchmarks for the wolfCrypt library and getting pefo
     - gcc
     - git 
 
-- Windows:
-    - Currently Unsupported
-
  - Zephyr:
     - SDK 0.16.8
     - Version 4.0.0

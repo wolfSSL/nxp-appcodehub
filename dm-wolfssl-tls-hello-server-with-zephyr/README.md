@@ -45,9 +45,6 @@ Creating a simple server using the Zephyr RTOS and wolfSSL to utilize the networ
     - gcc
     - git 
 
-- Windows:
-    - Currently Unsupported
-
  - Zephyr:
     - SDK 0.16.8
     - Version 4.0.0
