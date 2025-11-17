@@ -70,15 +70,30 @@ Creating a simple server using the Zephyr RTOS and wolfSSL to utilize the networ
 [<img src="Images/Setup3-3.png" width="300"/>](Images/Setup3-3.png)
 
 The project should be called `dm-wolfssl-tls-hello-server-with-zephyr`.
-3. For the full experience on Linux and MacOS, paste the following to the end of the CMakeLists.txt file:
+3. For the full experience on Linux and MacOS, build wolfSSL by running the provided build script:
+
+```bash
+cd dm-wolfssl-tls-hello-server-with-zephyr
+./build-wolfssl.sh
 ```
-# Check if the command is executed by redirecting output to a file (Unix-like systems)
-add_custom_command(
-    TARGET app POST_BUILD
-    COMMAND cd ../__repo__/modules/crypto/wolfssl && ./autogen.sh && ./configure && make
-    COMMENT "Echoing HELLO_WORLD after building the app target"
-)
+
+This script will:
+- Automatically clone wolfSSL v5.8.0 from GitHub if not found in the Zephyr modules path
+- Run autogen.sh to generate the configure script
+- Configure wolfSSL with default settings
+- Build the wolfSSL library
+
+**Alternative: Manual wolfSSL setup**
+
+If you prefer to manually clone wolfSSL instead of using the Zephyr-provided version:
+
+```bash
+cd dm-wolfssl-tls-hello-server-with-zephyr
+git clone --branch v5.8.0-stable https://github.com/wolfSSL/wolfssl.git
+./build-wolfssl.sh
 ```
+
+The build script will automatically detect and use the standalone wolfSSL directory.
 
 Windows support is coming soon.
 
@@ -96,8 +111,21 @@ Windows support is coming soon.
 
     [<img src="Images/Setup3-4.png" width="300"/>](Images/Setup3-4.png)
 
-4. In a terminal, go to the directory `/path/to/project/__repo__/modules/crypto/wolfssl` and then use the client application.
-`./examples/client/client -h <noted ip address> -v 4`
+4. Test the server using the wolfSSL client application:
+
+   **If using standalone wolfSSL (recommended):**
+   ```bash
+   cd wolfssl
+   ./examples/client/client -h <noted ip address> -v 4
+   ```
+   
+   **If using Zephyr-provided wolfSSL:**
+   ```bash
+   cd __repo__/modules/crypto/wolfssl
+   ./examples/client/client -h <noted ip address> -v 4
+   ```
+   
+   Note: Make sure you have built wolfSSL first using `./build-wolfssl.sh` as described in section 3.1
 
 This should produce the following results:
  - Serial Terminal for MCXN947:
@@ -123,12 +151,21 @@ This should produce the following results:
 
 ### 4.3 Verifying the Connection Type
 
-1. Run the client hello from step: [3.4.4](#step3) via 
+1. Run the client hello from step: [3.4.4](#step3):
 
-    `./examples/client/client -h <noted ip address> -v 4`
+   **If using standalone wolfSSL:**
+   ```bash
+   cd wolfssl
+   ./examples/client/client -h <noted ip address> -v 4
+   ```
+   
+   **If using Zephyr-provided wolfSSL:**
+   ```bash
+   cd __repo__/modules/crypto/wolfssl
+   ./examples/client/client -h <noted ip address> -v 4
+   ```
 
-
-    [<img src="Images/Setup3-6.png" width="300"/>](Images/Setup3-6.png)
+   [<img src="Images/Setup3-6.png" width="300"/>](Images/Setup3-6.png)
 
 2. Check the Wireshark Results, and see if the correct version of TLS is being used.
 It should look similar to this example.
@@ -170,7 +207,21 @@ If you want to change the version of TLS to v2 for the project. This can useful 
 
 3. Rebuild the project and flash the device.
 
-4. When running the client application use `./examples/client/client -h <noted ip address> -v 3`, this should produce the following results.
+4. When running the client application, use:
+   
+   **If using standalone wolfSSL:**
+   ```bash
+   cd wolfssl
+   ./examples/client/client -h <noted ip address> -v 3
+   ```
+   
+   **If using Zephyr-provided wolfSSL:**
+   ```bash
+   cd __repo__/modules/crypto/wolfssl
+   ./examples/client/client -h <noted ip address> -v 3
+   ```
+   
+   This should produce the following results.
 
     Server App:
 
@@ -191,7 +242,19 @@ If you want to change the port from the default `11111`
 
 2. Rebuild and flash the device.
 
-3. When using `./examples/client/client -h <noted ip address> -v 4` add the option `-p <Desired Port>` so that it is `./examples/client/client -h <noted ip address> -v 4 -p <Desired Port>`
+3. When running the client application, add the option `-p <Desired Port>`:
+   
+   **If using standalone wolfSSL:**
+   ```bash
+   cd wolfssl
+   ./examples/client/client -h <noted ip address> -v 4 -p <Desired Port>
+   ```
+   
+   **If using Zephyr-provided wolfSSL:**
+   ```bash
+   cd __repo__/modules/crypto/wolfssl
+   ./examples/client/client -h <noted ip address> -v 4 -p <Desired Port>
+   ```
 
 4. To verify the correct port is being used via Wireshark, look in the Info section of the network capture. For this example, I changed the device to use port `11110`.
 
@@ -252,4 +315,4 @@ Questions regarding the content/correctness of this example can be entered as Is
 ## 9. Release Notes<a name="step9"></a>
 | Version | Description / Update                           | Date                        |
 |:-------:|------------------------------------------------|----------------------------:|
-| 1.0     | Initial release on Application Code Hub        | TBD|
+| 1.0     | Initial release on Application Code Hub        | November 17th 2025|

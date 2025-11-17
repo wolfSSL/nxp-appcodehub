@@ -338,4 +338,4 @@ Questions regarding the content/correctness of this example can be entered as Is
 ## 8. Release Notes<a name="step9"></a>
 | Version | Description / Update                           | Date                        |
 |:-------:|------------------------------------------------|----------------------------:|
-| 1.0     | Initial release on Application Code Hub        | TBD|
+| 1.0     | Initial release on Application Code Hub        | November 17th 2025|
