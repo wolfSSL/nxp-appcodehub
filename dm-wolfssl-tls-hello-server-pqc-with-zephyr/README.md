@@ -80,25 +80,30 @@ The board target can be specified under the **PROJECTS** view.
 
 The project should be called `dm-wolfssl-tls-hello-server-pqc-with-zephyr`.
 
-4. For the full experience on Linux and MacOS, paste the following to the end of the CMakeLists.txt file:
+4. For the full experience on Linux and MacOS, build the client application by running the provided build script:
 
+```bash
+cd dm-wolfssl-tls-hello-server-pqc-with-zephyr
+./build-client.sh
 ```
-# Build wolfSSL with ML-KEM and ML-DSA support, then build the client application
-add_custom_command(
-    TARGET app POST_BUILD
-    COMMAND cd ../__repo__/modules/crypto/wolfssl && ./autogen.sh && ./configure --enable-mlkem --enable-dilithium && make
-    COMMENT "Building wolfSSL with ML-KEM and ML-DSA support"
-)
 
-# Build the client-tls13-filetransfer application
-add_custom_command(
-    TARGET app POST_BUILD
-    COMMAND gcc ${CMAKE_SOURCE_DIR}/client-tls13-filetransfer.c -o ${CMAKE_SOURCE_DIR}/client-tls13-filetransfer -I${CMAKE_SOURCE_DIR}/__repo__/modules/crypto/wolfssl -L${CMAKE_SOURCE_DIR}/__repo__/modules/crypto/wolfssl/src/.libs -lwolfssl
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMENT "Building client-tls13-filetransfer application"
-    DEPENDS ${CMAKE_SOURCE_DIR}/client-tls13-filetransfer.c
-)
+This script will:
+- Automatically clone wolfSSL v5.8.0 from GitHub if not found in the Zephyr modules path
+- Build wolfSSL with ML-KEM and ML-DSA support enabled
+- Compile the `client-tls13-filetransfer` application
+- Link it against the built wolfSSL library
+
+**Alternative: Manual wolfSSL setup**
+
+If you prefer to manually clone wolfSSL instead of using the Zephyr-provided version:
+
+```bash
+cd dm-wolfssl-tls-hello-server-pqc-with-zephyr
+git clone --branch v5.8.0-stable https://github.com/wolfSSL/wolfssl.git
+./build-client.sh
 ```
+
+The build script will automatically detect and use the standalone wolfSSL directory.
 
 Windows support is coming soon.
 
@@ -116,26 +121,30 @@ Windows support is coming soon.
 
     [<img src="Images/Setup3-4.png" width="300"/>](Images/Setup3-4.png)
 
-4. Run the `client-tls13-filetransfer` application. The client application is automatically built when you build the Zephyr server application using CMake. The source code for `client-tls13-filetransfer.c` and the required pem files are in the same directory as this README.md file.
+4. Run the `client-tls13-filetransfer` application. The source code for `client-tls13-filetransfer.c` and the required pem files are in the same directory as this README.md file.
 
    **Option 1: Using the convenience script (recommended)**
    ```bash
    ./run-client.sh 1.1.1.5 mldsa44_entity_cert.pem mldsa44_entity_key.pem
    ```
+   
+   The script automatically detects and uses either the standalone wolfSSL (in `wolfssl/`) or the Zephyr-provided version (in `__repo__/modules/crypto/wolfssl/`).
 
    **Option 2: Manual execution**
+   
+   If using standalone wolfSSL:
+   ```bash
+   LD_LIBRARY_PATH=wolfssl/src/.libs ./client-tls13-filetransfer 1.1.1.5 mldsa44_entity_cert.pem mldsa44_entity_key.pem
+   ```
+   
+   If using Zephyr-provided wolfSSL:
    ```bash
    LD_LIBRARY_PATH=__repo__/modules/crypto/wolfssl/src/.libs ./client-tls13-filetransfer 1.1.1.5 mldsa44_entity_cert.pem mldsa44_entity_key.pem
    ```
 
-   **Note:** The CMake build system automatically:
-   - Builds wolfSSL with ML-KEM and ML-DSA support enabled
-   - Compiles the `client-tls13-filetransfer` application
-   - Links it against the built wolfSSL library
-
-   If you need to rebuild just the client application manually, you can use:
+   **Note:** If you need to rebuild the client application, run:
    ```bash
-   gcc client-tls13-filetransfer.c -o client-tls13-filetransfer -I__repo__/modules/crypto/wolfssl -L__repo__/modules/crypto/wolfssl/src/.libs -lwolfssl
+   ./build-client.sh
    ```
 
 ## 4. FAQs<a name="step4"></a>
@@ -165,4 +174,4 @@ Questions regarding the content/correctness of this example can be entered as Is
 ## 6. Release Notes<a name="step6"></a>
 | Version | Description / Update                           | Date                        |
 |:-------:|------------------------------------------------|----------------------------:|
-| 1.0     | Initial release on Application Code Hub        | TBD|
+| 1.0     | Initial release on Application Code Hub        | November 17th 2025|

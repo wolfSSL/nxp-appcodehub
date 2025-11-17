@@ -5,7 +5,15 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLIENT_APP="${SCRIPT_DIR}/client-tls13-filetransfer"
-WOLFSSL_LIB_DIR="${SCRIPT_DIR}/__repo__/modules/crypto/wolfssl/src/.libs"
+
+# Check for wolfSSL library directory (standalone or Zephyr modules)
+if [ -d "${SCRIPT_DIR}/wolfssl/src/.libs" ]; then
+    WOLFSSL_LIB_DIR="${SCRIPT_DIR}/wolfssl/src/.libs"
+elif [ -d "${SCRIPT_DIR}/__repo__/modules/crypto/wolfssl/src/.libs" ]; then
+    WOLFSSL_LIB_DIR="${SCRIPT_DIR}/__repo__/modules/crypto/wolfssl/src/.libs"
+else
+    WOLFSSL_LIB_DIR=""
+fi
 
 # Default values
 IP_ADDRESS="${1:-1.1.1.5}"
@@ -15,7 +23,7 @@ KEY_FILE="${3:-${SCRIPT_DIR}/mldsa44_entity_key.pem}"
 # Check if client application exists
 if [ ! -f "$CLIENT_APP" ]; then
     echo "ERROR: Client application not found at $CLIENT_APP"
-    echo "Please build the project first using the CMake build system."
+    echo "Please build the project first using ./build-client.sh"
     exit 1
 fi
 
@@ -31,9 +39,12 @@ if [ ! -f "$KEY_FILE" ]; then
 fi
 
 # Check if wolfSSL library exists
-if [ ! -d "$WOLFSSL_LIB_DIR" ]; then
-    echo "ERROR: wolfSSL library directory not found: $WOLFSSL_LIB_DIR"
-    echo "Please build the project first using the CMake build system."
+if [ -z "$WOLFSSL_LIB_DIR" ] || [ ! -d "$WOLFSSL_LIB_DIR" ]; then
+    echo "ERROR: wolfSSL library directory not found"
+    echo "Searched locations:"
+    echo "  - ${SCRIPT_DIR}/wolfssl/src/.libs (standalone)"
+    echo "  - ${SCRIPT_DIR}/__repo__/modules/crypto/wolfssl/src/.libs (Zephyr modules)"
+    echo "Please build wolfSSL first using ./build-client.sh"
     exit 1
 fi
 
@@ -44,6 +55,7 @@ echo "======================================"
 echo "Server IP:    $IP_ADDRESS"
 echo "Certificate:  $CERT_FILE"
 echo "Private Key:  $KEY_FILE"
+echo "wolfSSL Lib:  $WOLFSSL_LIB_DIR"
 echo "======================================"
 echo ""
 
