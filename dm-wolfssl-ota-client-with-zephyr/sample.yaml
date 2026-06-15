@@ -1,0 +1,10 @@
+sample:
+  description: An OTA client that uses the ethernet available for the FRDM-MCXN947
+  name: OTA Client with wolfSSL and Zephyr
+tests:
+  sample.basic.wolfssl:
+    tags:
+      - Ethernet
+      - Networking
+      - TLS 1.3
+      - OTA

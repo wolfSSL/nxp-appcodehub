@@ -1,0 +1,73 @@
+From bbe155f1af5230471682afc0c1be7220541737a0 Mon Sep 17 00:00:00 2001
+From: Yosuke Shimizu <yosuke@wolfssl.com>
+Date: Fri, 17 Apr 2026 13:08:05 +0900
+Subject: [PATCH] Update configs and memry map
+
+---
+ hal/mcxn.c  | 10 +++++++++-
+ hal/mcxn.ld |  7 ++++---
+ 2 files changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/hal/mcxn.c b/hal/mcxn.c
+index 6344775c..8fae5fd1 100644
+--- a/hal/mcxn.c
++++ b/hal/mcxn.c
+@@ -62,7 +62,7 @@ static void hal_sau_init(void)
+             0);
+ 
+     /* Non-secure RAM */
+-    sau_init_region(2, 0x20020000, 0x20025FFF, 0);
++    sau_init_region(2, 0x20016000, 0x20065FFF, 0);
+ 
+     /* Peripherals */
+     sau_init_region(3, 0x40000000, 0x4005FFFF, 0);
+@@ -85,6 +85,14 @@ static void periph_unsecure(void)
+ 
+     GPIO_EnablePinControlNonSecure(GPIO0, (1UL << 10) | (1UL << 27));
+     GPIO_EnablePinControlNonSecure(GPIO1, (1UL << 2) | (1UL << 8) | (1UL << 9));
++
++    /* Disable GDET for voltage configuration on app */
++    GDET0->GDET_ENABLE1 = 0;
++    GDET1->GDET_ENABLE1 = 0;
++
++    /* Configure ENET IRQs as non-secure */
++    NVIC->ITNS[4] |= (1UL << 11) | (1UL << 12) | (1UL << 13);
++
+ }
+ #endif
+ 
+diff --git a/hal/mcxn.ld b/hal/mcxn.ld
+index 9d9c9feb..0e1f28ce 100644
+--- a/hal/mcxn.ld
++++ b/hal/mcxn.ld
+@@ -1,8 +1,8 @@
+ MEMORY
+ {
+-    FLASH (rx) :          ORIGIN = 0x00000000, LENGTH = @WOLFBOOT_KEYVAULT_ADDRESS@ - @ARCH_FLASH_OFFSET@
++    FLASH (rx) :          ORIGIN = 0x10000000, LENGTH = @WOLFBOOT_KEYVAULT_ADDRESS@ - @ARCH_FLASH_OFFSET@
+     RAM (rwx) :           ORIGIN = 0x30000000, LENGTH = 0x10000 /* 64K */
+-    RAM_HEAP (rwx) :      ORIGIN = 0x30010000, LENGTH = 0xE000 /* 56K */
++    RAM_HEAP (rwx) :      ORIGIN = 0x30010000, LENGTH = 0x6000 /* 24K */
+     FLASH_KEYVAULT (rw) : ORIGIN = @WOLFBOOT_KEYVAULT_ADDRESS@, LENGTH = @WOLFBOOT_KEYVAULT_SIZE@
+     FLASH_NSC (rx) :      ORIGIN = @WOLFBOOT_NSC_ADDRESS@, LENGTH = @WOLFBOOT_NSC_SIZE@
+ }
+@@ -30,7 +30,7 @@ SECTIONS
+         *(.ARM.exidx*)
+     } > FLASH
+ 
+-    .gnu.sgstubs ORIGIN(FLASH_NSC) :
++    .gnu.sgstubs :
+     {
+         . += 0x400;
+         . = ALIGN(4);
+@@ -43,6 +43,7 @@ SECTIONS
+     .data : AT (_stored_data)
+     {
+         _start_data = .;
++        KEEP(*(.ramcode*))
+         KEEP(*(.data*))
+         . = ALIGN(4);
+         _end_data = .;
+-- 
+2.53.0
+

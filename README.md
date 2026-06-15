@@ -54,9 +54,10 @@ In the figure below, the imported project is of the type `Zephyr`, which means i
 
 Once you select the `Repository` and `SDK` you want to use with the imported project, hit the `Import` button.
 
-## Setting Up wolfSSL, wolfMQTT, and wolfSSH
+## Setting Up wolfSSL, wolfMQTT, wolfSSH and wolfBoot
 
 Currently, with the way the projects are set up, you will need to add wolfSSL, wolfSSH, wolfMQTT, etc., to the `west.yml` file inside the Zephyr repo specified during the import of the project.
+wolfBoot is required for dm-wolfssl-ota-client-with-zephyr only.
 
 So for example the following would be added to `/Users/night1rider/Documents/VS-Code/Zephyr-Main/zephyr/west.yml` 
 and then a `west update` performed inside that directory to update the repositories available to `Zephyr`.
@@ -70,6 +71,8 @@ manifest:
     - name: wolfssh
       url-base: https://github.com/wolfssl
     - name: wolfmqtt
+      url-base: https://github.com/wolfssl
+    - name: wolfboot
       url-base: https://github.com/wolfssl
 
   projects:
@@ -86,6 +89,10 @@ manifest:
       path: modules/lib/wolfmqtt
       revision: v2.0.0
       remote: wolfmqtt
+    - name: wolfboot
+      path: modules/bootloader/wolfboot
+      revision: v2.8.0
+      remote: wolfboot
 ```
 
 For more Zephyr-specific examples, look at the following READMEs:

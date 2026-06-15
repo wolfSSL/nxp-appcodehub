@@ -1,9 +1,11 @@
 **/build
 **/debug
+**/svd
 **/__repo__
 **/.vscode
 **/CMakePresets.json
 **/mcux_include.json
+dm-wolfssl-ota-client-with-zephyr/wolfbootConfig/*.o
 
 # PQC demo desktop client build artifacts (built by build-client.sh)
 dm-wolfssl-tls-hello-server-pqc-with-zephyr/client-tls13-filetransfer
