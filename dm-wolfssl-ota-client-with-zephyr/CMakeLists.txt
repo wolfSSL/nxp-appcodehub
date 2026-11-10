@@ -43,6 +43,86 @@ if(NOT _patch_applied EQUAL 0)
             "  git output: ${_patch_error}")
     endif()
 endif()
+set(_WB_PATCHES "${_WB_PATCH}")
+
+# wolfBoot cross compiler: CROSS_COMPILE, else the Zephyr SDK, else arm-none-eabi-gcc.
+set(_WB_CROSS "")
+if(DEFINED ENV{CROSS_COMPILE} AND NOT "$ENV{CROSS_COMPILE}" STREQUAL "")
+    set(_WB_CROSS "$ENV{CROSS_COMPILE}")
+elseif((DEFINED ENV{ZEPHYR_TOOLCHAIN_VARIANT} AND
+        ("$ENV{ZEPHYR_TOOLCHAIN_VARIANT}" STREQUAL "zephyr" OR
+         "$ENV{ZEPHYR_TOOLCHAIN_VARIANT}" STREQUAL "zephyr-sdk")) OR
+       DEFINED ENV{ZEPHYR_SDK_INSTALL_DIR})
+    set(_WB_SDK "$ENV{ZEPHYR_SDK_INSTALL_DIR}")
+    # SDK >= 1.0 keeps toolchains in <sdk>/gnu/<triplet>, older ones in <sdk>/<triplet>.
+    foreach(_WB_SDK_CANDIDATE
+            "${_WB_SDK}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-"
+            "${_WB_SDK}/arm-zephyr-eabi/bin/arm-zephyr-eabi-")
+        if(EXISTS "${_WB_SDK_CANDIDATE}gcc")
+            set(_WB_CROSS "${_WB_SDK_CANDIDATE}")
+            break()
+        endif()
+    endforeach()
+    if("${_WB_CROSS}" STREQUAL "")
+        message(FATAL_ERROR
+            "ZEPHYR_TOOLCHAIN_VARIANT is the Zephyr SDK but no arm-zephyr-eabi "
+            "toolchain was found under ZEPHYR_SDK_INSTALL_DIR='${_WB_SDK}'.\n"
+            "Install the Zephyr SDK with the arm-zephyr-eabi GNU toolchain, or "
+            "set CROSS_COMPILE to a cross compiler prefix.")
+    endif()
+else()
+    find_program(_WB_HOST_GCC arm-none-eabi-gcc)
+    if(_WB_HOST_GCC)
+        set(_WB_CROSS "arm-none-eabi-")
+    else()
+        message(FATAL_ERROR
+            "No Arm cross compiler for wolfBoot. Either install the Zephyr SDK "
+            "(and set ZEPHYR_SDK_INSTALL_DIR, with "
+            "ZEPHYR_TOOLCHAIN_VARIANT=zephyr on Zephyr >= 4.3 or zephyr-sdk on "
+            "older releases), put arm-none-eabi-gcc in PATH, or set "
+            "CROSS_COMPILE. Twister and the Zephyr CI containers both use only "
+            "the Zephyr SDK.")
+    endif()
+endif()
+message(STATUS "wolfBoot cross compiler: ${_WB_CROSS}gcc")
+
+# Use the cross strip: the host strip can't handle a Cortex-M33 ELF.
+set(_WB_STRIP "strip")
+if(DEFINED ENV{CONFIG_STRIP} AND NOT "$ENV{CONFIG_STRIP}" STREQUAL "")
+    set(_WB_STRIP "$ENV{CONFIG_STRIP}")
+elseif(EXISTS "${_WB_CROSS}strip")
+    set(_WB_STRIP "${_WB_CROSS}strip")
+endif()
+message(STATUS "wolfBoot strip: ${_WB_STRIP}")
+
+# Wipe wolfBoot objects when the compiler or patches change (make only checks timestamps).
+set(_WB_STAMP_SRC "${_WB_CROSS}")
+foreach(_WB_PATCH IN LISTS _WB_PATCHES)
+    file(SHA1 "${_WB_PATCH}" _wb_patch_sha)
+    string(APPEND _WB_STAMP_SRC "|${_WB_PATCH}=${_wb_patch_sha}")
+endforeach()
+string(SHA1 _WB_STAMP "${_WB_STAMP_SRC}")
+set(_WB_STAMP_FILE "${WOLFBOOT_MODULE_DIR}/.zephyr-app-build-stamp")
+set(_WB_STAMP_OLD "")
+if(EXISTS "${_WB_STAMP_FILE}")
+    file(READ "${_WB_STAMP_FILE}" _WB_STAMP_OLD)
+endif()
+if(NOT _WB_STAMP_OLD STREQUAL _WB_STAMP)
+    message(STATUS "wolfBoot: toolchain/patches changed, removing stale objects")
+    execute_process(
+        COMMAND make clean
+        WORKING_DIRECTORY "${WOLFBOOT_MODULE_DIR}"
+        RESULT_VARIABLE _wb_clean
+        OUTPUT_QUIET ERROR_QUIET
+    )
+    file(GLOB_RECURSE _WB_STALE_OBJS
+         "${_MCUX_ROOT}/*.o" "${_MCUX_DRV}/*.o" "${_MCUX_TMPL}/*.o")
+    if(_WB_STALE_OBJS)
+        list(FILTER _WB_STALE_OBJS EXCLUDE REGEX "${CMAKE_BINARY_DIR}")
+        # file(REMOVE) with no arguments errors before CMake 3.31.
+        file(REMOVE ${_WB_STALE_OBJS})
+    endif()
+endif()
 
 # ── wolfBoot binary build (configure time, before Zephyr) ─────────────────────
 # CORTEX_M33=1 must be on the command line so the ifeq in arch.mk (~line 357)
@@ -65,7 +145,11 @@ execute_process(
         WOLFBOOT_ROOT=${WOLFBOOT_MODULE_DIR}
         TARGET=mcxn ARCH=ARM TZEN=1 SIGN=ECC384 HASH=SHA384
         CORTEX_M33=1
+        CROSS_COMPILE=${_WB_CROSS}
+        CONFIG_STRIP=${_WB_STRIP}
         MCUXSDK=1
+        # NDEBUG: the MCUX drivers' asserts need stderr/_exit, which a bootloader lacks.
+        CFLAGS_EXTRA=-DNDEBUG=1
         MCUXPRESSO=${_MCUX_ROOT}
         MCUXPRESSO_CMSIS=${_MCUX_CMSIS}
         MCUXPRESSO_CPU=MCXN947VDF_cm33_core0
@@ -88,6 +172,7 @@ execute_process(
 if(NOT _wb_result EQUAL 0)
     message(FATAL_ERROR "wolfBoot make failed")
 endif()
+file(WRITE "${_WB_STAMP_FILE}" "${_WB_STAMP}")
 
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/zephyr")
 file(COPY "${WOLFBOOT_MODULE_DIR}/wolfboot.bin"

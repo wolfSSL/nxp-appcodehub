@@ -20,6 +20,10 @@
  */
 
 /* User Settings file */
+/* POSIX socket prototypes come from Zephyr; include them before wolfSSL. */
+#include <sys/socket.h>
+#include <unistd.h>
+
 #include "user_settings.h"  /* For wolfssl/mqtt zephyr configuration */
 #include <wolfssl/wolfcrypt/settings.h>
 /* wolfSSL Includes Start */

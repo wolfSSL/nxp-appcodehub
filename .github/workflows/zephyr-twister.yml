@@ -1,0 +1,278 @@
+# Zephyr app CI (wolfSSL/nxp-appcodehub#22): lint suite ids, Twister dry run, builds.
+
+name: Zephyr Twister build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      board:
+        description: 'Board to build'
+        required: false
+        default: 'frdm_mcxn947/mcxn947/cpu0'
+  schedule:
+    # Nightly at 05:15 UTC.
+    - cron: '15 5 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+env:
+  # Zephyr SDK version this repository is tested with (see README.md).
+  SDK_VERSION: '1.0.1'
+  SDK_DIR: ${{ github.workspace }}/sdk
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+
+jobs:
+  # Fails in seconds if two apps share a Twister suite id (the #22 failure).
+  lint:
+    name: Lint Twister suite ids
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Zephyr's python.cmake needs Python >= 3.12.
+          python-version: '3.12'
+
+      - name: Install python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml pytest
+
+      - name: Check for duplicate suite ids / test names
+        run: python3 .github/scripts/check_twister_ids.py . --verbose
+
+      - name: Run the lint script's own tests
+        # Gate on the lint script's own tests actually running.
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary="$(python3 -m pytest .github/tests/test_check_twister_ids.py -q | tail -1)"
+          echo "$summary"
+          case "$summary" in
+            *" passed"*) : ;;
+            *) echo "::error::the lint script's tests did not run: $summary" >&2
+               exit 1 ;;
+          esac
+          case "$summary" in
+            *skipped*)
+              echo "::error::the lint script's tests must not skip: $summary" >&2
+              exit 1 ;;
+          esac
+          # The whole test suite must pass too.
+          python3 -m pytest .github/tests -q --tb=short
+
+  # Twister dry run: catches duplicate suites or unknown platforms without a compiler.
+  discovery:
+    name: Twister discovery (${{ matrix.board }})
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - board: frdm_mcxn947/mcxn947/cpu0
+            # upload-artifact rejects '/' in names: filesystem-safe slug.
+            slug: cpu0
+            # Apps that must be planned: all six on cpu0, only the OTA client on /ns.
+            min_planned: 6
+          # The OTA client is the non-secure app; RW612 has no /ns variant.
+          - board: frdm_mcxn947/mcxn947/cpu0/ns
+            slug: cpu0-ns
+            min_planned: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: nxp-appcodehub
+
+      - uses: actions/setup-python@v5
+        with:
+          # >= 3.12, Zephyr's floor -- see the note in the lint job
+          python-version: '3.12'
+
+      - name: Install west and the Twister python dependencies
+        # Twister needs zephyr/scripts/requirements.txt (jsonschema) to start.
+        run: |
+          python -m pip install --upgrade pip
+          pip install west pyyaml
+
+      - name: Set up the west workspace
+        # `[ -d .west ] ||` keeps this idempotent on a reused runner/container.
+        run: |
+          [ -d .west ] || west init -l nxp-appcodehub
+          west update --narrow
+
+      - name: Install Twister requirements
+        # Twister needs cmake and ninja even for a dry run, and they aren't in requirements.txt.
+        run: |
+          python -m pip install -r zephyr/scripts/requirements.txt
+          python -m pip install cmake ninja
+
+      # A dry run still checks for a toolchain per platform.
+      - name: Install the Zephyr SDK
+        uses: ./nxp-appcodehub/.github/actions/install-zephyr-sdk
+        with:
+          version: ${{ env.SDK_VERSION }}
+          dir: ${{ env.SDK_DIR }}
+
+      - name: Twister dry run (discovery only)
+        # -y is --dry-run (-n is --no-clean in Zephyr 4.4).
+        run: |
+          python zephyr/scripts/twister \
+            -T "$GITHUB_WORKSPACE/nxp-appcodehub" \
+            -p '${{ matrix.board }}' \
+            -y --inline-logs \
+            -O "$GITHUB_WORKSPACE/twister-discovery"
+
+      # Twister doesn't fail for an app that allows no platforms, so check the plan is complete.
+      - name: Check the discovery plan
+        run: |
+          python nxp-appcodehub/.github/scripts/twister_summary.py --testplan \
+            --github-summary --min-built '${{ matrix.min_planned }}' \
+            "$GITHUB_WORKSPACE/twister-discovery/testplan.json"
+
+      - name: Upload discovery report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discovery-${{ matrix.slug }}
+          path: |
+            twister-discovery/testplan.json
+            twister-discovery/twister.log
+          if-no-files-found: warn
+
+  build:
+    name: Build apps (${{ matrix.board }})
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - frdm_mcxn947/mcxn947/cpu0
+          - frdm_mcxn947/mcxn947/cpu0/ns
+
+    steps:
+      # Filesystem-safe board id for artefact and cache names.
+      - name: Board slug
+        id: slug
+        env:
+          BOARD: ${{ matrix.board }}
+        run: |
+          echo "slug=${BOARD//\//-}" >> "$GITHUB_OUTPUT"
+          # Same output dir run_twister_apps.sh uses.
+          echo "out=twister-out-${BOARD//\//_}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          path: nxp-appcodehub
+
+      - uses: actions/setup-python@v5
+        with:
+          # >= 3.12, Zephyr's floor -- see the note in the lint job
+          python-version: '3.12'
+
+      - name: Install host tools
+        # cmake/ninja from pip and dtc/ccache/wget from apt, like the discovery job.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ccache wget xz-utils gperf device-tree-compiler
+          python -m pip install --upgrade pip
+          python -m pip install west cmake ninja
+
+      - name: Install the Zephyr SDK
+        uses: ./nxp-appcodehub/.github/actions/install-zephyr-sdk
+        with:
+          version: ${{ env.SDK_VERSION }}
+          dir: ${{ env.SDK_DIR }}
+
+      # pip wheel cache and the west/SDK download cache.
+      - name: Cache ~/.cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache
+          key: home-cache-${{ steps.slug.outputs.slug }}-${{ hashFiles('nxp-appcodehub/west.yml') }}-${{ github.run_id }}
+          restore-keys: |
+            home-cache-${{ steps.slug.outputs.slug }}-${{ hashFiles('nxp-appcodehub/west.yml') }}-
+            home-cache-${{ steps.slug.outputs.slug }}-
+            home-cache-
+
+      - name: Cache west modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            zephyr
+            modules
+          key: west-modules-${{ hashFiles('nxp-appcodehub/west.yml') }}
+          restore-keys: |
+            west-modules-
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ steps.slug.outputs.slug }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ steps.slug.outputs.slug }}-
+            ccache-
+
+      # west init -l on this checkout, so the PR's code is what gets built.
+      - name: Set up the west workspace
+        # `[ -d .west ] ||` keeps this idempotent on a reused runner/container.
+        run: |
+          [ -d .west ] || west init -l nxp-appcodehub
+          west update --narrow
+
+      - name: Install python requirements
+        run: pip install -r zephyr/scripts/requirements.txt
+
+      # Warnings stay errors (Twister's default).
+      - name: Build every app with Twister
+        shell: bash
+        run: |
+          set -euo pipefail
+          board_safe="${{ matrix.board }}"
+          board_safe="${board_safe//\//_}"
+          ./nxp-appcodehub/.github/scripts/run_twister_apps.sh \
+            -b '${{ matrix.board }}' \
+            -o "$GITHUB_WORKSPACE/twister-out-$board_safe"
+
+      # Fail if any suite was dropped, errored or warned, or if nothing was built.
+      - name: Check the Twister summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This leg's exact output dir, not a glob that also matches rotated dirs.
+          current="${{ steps.slug.outputs.out }}/twister.json"
+          if [ ! -f "$current" ]; then
+            echo "No $current: this ${{ matrix.board }} leg built nothing" >&2
+            find . -maxdepth 1 -name 'twister-out-*' -printf '  found: %p\n' >&2
+            exit 1
+          fi
+          python3 nxp-appcodehub/.github/scripts/twister_summary.py \
+            --github-summary "$current"
+
+      - name: Upload Twister reports and build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: twister-${{ steps.slug.outputs.slug }}
+          path: |
+            ${{ steps.slug.outputs.out }}/twister.json
+            ${{ steps.slug.outputs.out }}/twister.xml
+            ${{ steps.slug.outputs.out }}/twister.log
+            ${{ steps.slug.outputs.out }}/**/build.log
+            ${{ steps.slug.outputs.out }}/**/cmake_install.cmake
+          if-no-files-found: warn
+          retention-days: 14

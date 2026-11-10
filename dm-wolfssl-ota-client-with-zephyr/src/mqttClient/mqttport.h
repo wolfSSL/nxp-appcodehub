@@ -149,6 +149,9 @@ extern "C" {
 #elif defined(WOLFMQTT_ZEPHYR)
     #include <zephyr/kernel.h>
     #include <zephyr/fs/fs.h>
+    /* POSIX socket names come from Zephyr (CONFIG_POSIX_API). */
+    #include <sys/socket.h>
+    #include <unistd.h>
     #ifdef CONFIG_POSIX_API
         #include <sys/select.h>
     #else

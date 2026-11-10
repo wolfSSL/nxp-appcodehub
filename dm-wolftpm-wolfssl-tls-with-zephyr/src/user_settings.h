@@ -53,7 +53,7 @@ extern "C" {
 #define NO_MAIN_FUNCTION
 #define NO_MAIN_DRIVER
 #define USE_CERT_BUFFERS_2048
-#define USE_CERT_BUFFERS_256
+/* USE_CERT_BUFFERS_256 left out: it overflows the 320 KB SRAM. */
 #define USE_ANY_ADDR
 /* ------------------------------------------------------------------------- */
 /* Hardware */
@@ -85,19 +85,13 @@ extern "C" {
 /* ------------------------------------------------------------------------- */
 /* TLS */
 /* ------------------------------------------------------------------------- */
-/* TLS v1.2 (on by default) */
-#ifdef CONFIG_WOLFSSL_TLS_VERSION_1_2
-    #undef  WOLFSSL_NO_TLS12
-#else
-    #define WOLFSSL_NO_TLS12
-#endif
+/* TLS v1.2: enabled here, no longer read back from wolfSSL's Kconfig. */
+#undef WOLFSSL_NO_TLS12
 //#define NO_WOLFSSL_SERVER /* Optionally disable TLS server code */
 //#define NO_WOLFSSL_CLIENT /* Optionally disable TLS client code */
 
-/* TLS v1.3 */
-#if 1
-    #define WOLFSSL_TLS13
-#endif
+/* TLS 1.3 set here: its Kconfig option needs no settings file. */
+#define WOLFSSL_TLS13
 
 /* Disable older TLS version prior to 1.2 */
 #define NO_OLD_TLS
@@ -426,7 +420,8 @@ extern "C" {
 #define WOLFTPM_ADV_IO
 #define WOLFTPM_INCLUDE_IO_FILE
 #define WOLFTPM_ZEPHYR_I2C_BUS flexcomm3_lpi2c3
-//#define WOLFTPM_ZEPHYR_I2C_SPEED I2C_SPEED_FAST
+/* Must match the overlay's I2C_BITRATE_STANDARD (else a Twister error). */
+#define WOLFTPM_ZEPHYR_I2C_SPEED I2C_SPEED_STANDARD
 #define WOLFTPM2_USE_WOLF_RNG
 #define WOLFTPM2_USE_HW_RNG
 #define WOLFTPM2_CERT_GEN
