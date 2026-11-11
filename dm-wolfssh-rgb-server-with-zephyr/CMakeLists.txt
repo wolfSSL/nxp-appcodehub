@@ -19,17 +19,3 @@ target_include_directories(app PRIVATE src)
 
 add_definitions(-DWOLFSSH_USER_SETTINGS)
 add_definitions(-DWOLFSSL_USER_SETTINGS)
-
-# Force-include the send()/recv() -> zsock_* remap for wolfSSH's sources only.
-set(_WSX_MODULE_DIR "$ENV{ZEPHYR_BASE}/../modules/lib/wolfssh")
-get_filename_component(_WSX_MODULE_DIR "${_WSX_MODULE_DIR}" REALPATH)
-if(IS_DIRECTORY "${_WSX_MODULE_DIR}/src")
-    file(GLOB _WSX_SOURCES "${_WSX_MODULE_DIR}/src/*.c")
-    set_source_files_properties(${_WSX_SOURCES} PROPERTIES COMPILE_OPTIONS
-        "-include;${CMAKE_SOURCE_DIR}/src/zephyr_socket_names.h")
-    message(STATUS "wolfSSH BSD socket-name remap enabled for "
-                   "${_WSX_MODULE_DIR}/src (${CMAKE_SOURCE_DIR}/src/zephyr_socket_names.h)")
-else()
-    message(WARNING "wolfSSH module sources not found at ${_WSX_MODULE_DIR}/src; "
-                    "the send()/recv() name remap was not applied")
-endif()

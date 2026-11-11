@@ -114,6 +114,9 @@ extern "C" {
 /* Session Cache */
 #if 1
     #define SMALL_SESSION_CACHE
+    /* Session cache unused; too big for 320 KB SRAM on wolfSSL 5.9.4. */
+    #define NO_CLIENT_CACHE
+    #define NO_SESSION_CACHE_REF /* required by NO_CLIENT_CACHE */
     #ifdef WOLFSSL_TLS13
         #define HAVE_SESSION_TICKET /* session tickets required for resumption in TLS v1.3 */
     #endif

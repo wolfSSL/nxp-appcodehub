@@ -48,7 +48,7 @@ This app is intended to work with wolfBoot, which is a secure bootloader running
     - SDK 1.0.1
     - Version 4.4.0
 - wolfSSL
-  - Version v5.9.1-stable
+  - Version v5.9.4-stable
 - wolfBoot
     - Version 2.8.0
 - wolfMQTT

@@ -609,6 +609,9 @@ int fwclient_test(MQTTCtx *mqttCtx)
                 goto exit;
             }
             mqttCtx->client.ctx = mqttCtx;
+            /* Broker cert has no IP SAN; the verify callback decides trust. */
+            MqttClient_Flags(&mqttCtx->client, 0,
+                MQTT_CLIENT_FLAG_TLS_SKIP_HOST_CHECK);
         }
         FALL_THROUGH;
 
@@ -711,7 +714,11 @@ int fwclient_test(MQTTCtx *mqttCtx)
             if (!mSubCommandComplete) {
                 mSubCommandComplete = 1;
                 mqttCtx->topics[0].topic_filter = mqttCtx->topic_name;
+                /* Fresh request: wolfMQTT >= 2.2 keeps state in it. */
+                XMEMSET(&mqttCtx->subscribe, 0, sizeof(MqttSubscribe));
                 mqttCtx->subscribe.packet_id = mqtt_get_packetid();
+                mqttCtx->subscribe.topic_count = 1;
+                mqttCtx->subscribe.topics = mqttCtx->topics;
                 PRINTF("MQTT Subscribing to firmware topic...");
                 return MQTT_CODE_CONTINUE;
             }
