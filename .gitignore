@@ -15,3 +15,6 @@ __pycache__/
 *.pyc
 twister-out*/
 .pytest_cache/
+# Renode CI scratch (ELFs from the build job, host-side wolfSSL clients)
+renode-elfs/
+wolfssl-host/

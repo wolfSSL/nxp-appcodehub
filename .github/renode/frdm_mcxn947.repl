@@ -1,0 +1,187 @@
+// FRDM-MCXN947 (cpu0): enough of the SoC to boot these demos; clock/power blocks are stubs.
+
+cpu: CPU.CortexM @ sysbus
+    cpuType: "cortex-m33"
+    nvic: nvic
+
+nvic: IRQControllers.NVIC @ sysbus 0xE000E000
+    priorityMask: 0xE0
+    systickFrequency: 150000000
+    IRQ -> cpu@0
+
+// Memory: flash and SRAM are each one array seen at two addresses.
+flash: Memory.MappedMemory @ { sysbus 0x00000000; sysbus 0x10000000 }
+    size: 0x200000
+
+sramx: Memory.MappedMemory @ { sysbus 0x04000000; sysbus 0x14000000 }
+    size: 0x18000
+
+sram: Memory.MappedMemory @ { sysbus 0x20000000; sysbus 0x30000000 }
+    size: 0x68000
+
+// Unique ID (hwinfo, unique MAC address) and boot ROM area read by the SDK.
+uuid: Memory.MappedMemory @ sysbus 0x11100000
+    size: 0x1000
+
+// Console: LP_FLEXCOMM4 in LPUART mode.
+lpuart4: UART.NXP_LPUART @ { sysbus 0x400B4000; sysbus 0x500B4000 }
+    frequency: 48000000
+    IRQ -> nvic@39
+
+// Ethernet QoS (NXP_ENET_QOS.cs, include it first) with a generic MII PHY at address 0.
+enet: Network.NXP_ENET_QOS @ {
+        sysbus 0x40100000;
+        sysbus new Bus.BusMultiRegistration { address: 0x40100C00; size: 0x200; region: "mtl" };
+        sysbus new Bus.BusMultiRegistration { address: 0x40101000; size: 0x200; region: "dma" };
+        sysbus 0x50100000;
+        sysbus new Bus.BusMultiRegistration { address: 0x50100C00; size: 0x200; region: "mtl" };
+        sysbus new Bus.BusMultiRegistration { address: 0x50101000; size: 0x200; region: "dma" }
+    }
+    systemClockFrequency: 150000000
+    IRQ -> nvic@139
+
+phy: Network.EthernetPhysicalLayer @ enet 0
+    BasicControl: 0x3100
+    BasicStatus: 0x782D
+    Id1: 0x0007
+    Id2: 0xC130
+    AutoNegotiationAdvertisement: 0x01E1
+    AutoNegotiationLinkPartnerBasePageAbility: 0x41E1
+
+// SYSCON: SET/CLR aliases update their base register; clock dividers are always stable.
+syscon: Python.PythonPeripheral @ { sysbus 0x40000000; sysbus 0x50000000 }
+    size: 0x4000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+elif request.IsWrite:
+    off = request.Offset
+    if 0x120 <= off < 0x130 or 0x220 <= off < 0x230:
+        base = off - 0x20
+        regs[base] = regs.get(base, 0) | request.Value
+    elif 0x140 <= off < 0x150 or 0x240 <= off < 0x250:
+        base = off - 0x40
+        regs[base] = regs.get(base, 0) & ~request.Value
+    else:
+        regs[off] = request.Value
+else:
+    off = request.Offset
+    v = regs.get(off, 0)
+    if 0x300 <= off < 0x400:
+        v &= ~0x80000000
+    request.Value = v
+'''
+
+// Plain register files: values read back as written.
+ports: Memory.MappedMemory @ { sysbus 0x40116000; sysbus 0x50116000 }
+    size: 0x5000
+
+port5: Memory.MappedMemory @ { sysbus 0x40042000; sysbus 0x50042000 }
+    size: 0x1000
+
+gpio0to4: Memory.MappedMemory @ { sysbus 0x40096000; sysbus 0x50096000 }
+    size: 0xA000
+
+gpio5: Memory.MappedMemory @ { sysbus 0x40040000; sysbus 0x50040000 }
+    size: 0x1000
+
+cmc: Memory.MappedMemory @ { sysbus 0x40048000; sysbus 0x50048000 }
+    size: 0x1000
+
+// SCG: oscillators always valid, PLLs always locked, CSR follows RCCR.
+scg: Python.PythonPeripheral @ { sysbus 0x40044000; sysbus 0x50044000 }
+    size: 0x1000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {0x200: 0x20, 0x300: 0x31}
+elif request.IsWrite:
+    v = request.Value
+    if request.Offset in (0x100, 0x200, 0x300):
+        v &= ~0x04000000
+    regs[request.Offset] = v
+else:
+    off = request.Offset
+    v = regs.get(off, 0)
+    if off == 0x10:
+        v = regs.get(0x14, 0x03000000) & 0x0F000000
+    elif off in (0x100, 0x200, 0x300, 0x400, 0x500, 0x600, 0x700):
+        v |= 0x01000000
+    elif off == 0x800:
+        v |= 0x80000000
+    request.Value = v
+'''
+
+// SPC: never busy, SRAM and DCDC burst requests acknowledged at once.
+spc: Python.PythonPeripheral @ { sysbus 0x40045000; sysbus 0x50045000 }
+    size: 0x1000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+elif request.IsWrite:
+    regs[request.Offset] = request.Value
+else:
+    off = request.Offset
+    v = regs.get(off, 0)
+    if off == 0x10:
+        v &= ~0x3
+    elif off == 0x40:
+        v |= 0x80000000
+    elif off == 0x504:
+        v |= 0x8
+    request.Value = v
+'''
+
+// VBAT: 32 kHz oscillator ready.
+vbat: Python.PythonPeripheral @ { sysbus 0x40059000; sysbus 0x50059000 }
+    size: 0x1000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+elif request.IsWrite:
+    regs[request.Offset] = request.Value
+else:
+    v = regs.get(request.Offset, 0)
+    if request.Offset == 0x10:
+        v |= 0x20
+    request.Value = v
+'''
+
+// CACHE64 controller: maintenance commands (CCR.GO) complete immediately.
+cache64: Python.PythonPeripheral @ { sysbus 0x4001B000; sysbus 0x5001B000 }
+    size: 0x1000
+    initable: true
+    script: '''
+if request.IsInit:
+    regs = {}
+elif request.IsWrite:
+    regs[request.Offset] = request.Value
+else:
+    v = regs.get(request.Offset, 0)
+    if request.Offset == 0x800:
+        v &= ~0x80000000
+    request.Value = v
+'''
+
+// ELS: TRNG never busy, entropy always available, random PRNG output words.
+els: Python.PythonPeripheral @ { sysbus 0x40054000; sysbus 0x50054000 }
+    size: 0x1000
+    initable: true
+    script: '''
+if request.IsInit:
+    import random
+    regs = {}
+elif request.IsWrite:
+    regs[request.Offset] = request.Value
+else:
+    off = request.Offset
+    if off == 0x0:
+        request.Value = 0x300
+    elif off == 0x5C:
+        request.Value = random.getrandbits(32)
+    else:
+        request.Value = regs.get(off, 0)
+'''

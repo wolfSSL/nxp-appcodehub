@@ -243,9 +243,11 @@ jobs:
           set -euo pipefail
           board_safe="${{ matrix.board }}"
           board_safe="${board_safe//\//_}"
+          # Keep each app's ELF for the Renode job.
           ./nxp-appcodehub/.github/scripts/run_twister_apps.sh \
             -b '${{ matrix.board }}' \
-            -o "$GITHUB_WORKSPACE/twister-out-$board_safe"
+            -o "$GITHUB_WORKSPACE/twister-out-$board_safe" \
+            -- --keep-artifacts zephyr/zephyr.elf
 
       # Fail if any suite was dropped, errored or warned, or if nothing was built.
       - name: Check the Twister summary
@@ -274,5 +276,95 @@ jobs:
             ${{ steps.slug.outputs.out }}/twister.log
             ${{ steps.slug.outputs.out }}/**/build.log
             ${{ steps.slug.outputs.out }}/**/cmake_install.cmake
+          if-no-files-found: warn
+          retention-days: 14
+
+      # The pinned cpu0 images, named by Twister suite id, for the Renode job.
+      - name: Collect the ELFs for Renode
+        if: matrix.board == 'frdm_mcxn947/mcxn947/cpu0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p renode-elfs
+          find "${{ steps.slug.outputs.out }}" -path '*/zephyr/zephyr.elf' | while read -r elf; do
+            cp "$elf" "renode-elfs/$(basename "$(dirname "$(dirname "$elf")")").elf"
+          done
+          ls -l renode-elfs
+
+      - name: Upload the ELFs for Renode
+        if: matrix.board == 'frdm_mcxn947/mcxn947/cpu0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: renode-elfs-${{ steps.slug.outputs.slug }}
+          path: renode-elfs/*.elf
+          if-no-files-found: error
+          retention-days: 7
+
+  # Emulated FRDM-MCXN947 (.github/renode/): boot and network tests.
+  renode:
+    name: Renode (emulated FRDM-MCXN947)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      RENODE_VERSION: '1.17.0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: nxp-appcodehub
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: renode-elfs-frdm_mcxn947-mcxn947-cpu0
+          path: nxp-appcodehub/renode-elfs
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Renode, dnsmasq and the host build tools
+        run: |
+          curl -sSL "https://github.com/renode/renode/releases/download/v${RENODE_VERSION}/renode-${RENODE_VERSION}.linux-portable.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP"
+          dir="$(echo "$RUNNER_TEMP"/renode_*)"
+          echo "$dir" >> "$GITHUB_PATH"
+          python -m pip install -r "$dir/tests/requirements.txt"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends dnsmasq autoconf automake libtool
+
+      # wolfSSL at the release west.yml pins, plus the PQC demo's own client.
+      - name: Build the host-side clients
+        run: |
+          nxp-appcodehub/.github/renode/host-clients.sh "$GITHUB_WORKSPACE/wolfssl-host"
+          echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/wolfssl-host/src/.libs" >> "$GITHUB_ENV"
+
+      # tap0 for Renode, NATed to the internet (MQTT -> AWS IoT); tc fixes stale checksums.
+      - name: Create the TAP interface, DHCP server and NAT
+        run: |
+          sudo ip tuntap add dev tap0 mode tap user "$(id -un)"
+          sudo ip addr add 192.0.2.1/24 dev tap0
+          sudo ip link set tap0 up
+          sudo sysctl -qw net.ipv4.ip_forward=1
+          sudo iptables -t nat -A POSTROUTING -s 192.0.2.0/24 ! -o tap0 -j MASQUERADE
+          sudo iptables -I FORWARD -i tap0 -j ACCEPT
+          sudo iptables -I FORWARD -o tap0 -j ACCEPT
+          sudo tc qdisc add dev tap0 clsact
+          sudo tc filter add dev tap0 egress matchall action csum ip4h tcp udp
+          sudo dnsmasq --interface=tap0 --bind-dynamic --port=0 --log-dhcp \
+            --dhcp-option=option:dns-server,8.8.8.8 \
+            --dhcp-range=192.0.2.10,192.0.2.50,255.255.255.0,1h \
+            --dhcp-leasefile="$RUNNER_TEMP/dnsmasq.leases"
+
+      - name: Run the Renode tests
+        run: |
+          renode-test nxp-appcodehub/.github/renode/boot.robot nxp-appcodehub/.github/renode/network.robot \
+            --variable WOLFSSL_HOST:"$GITHUB_WORKSPACE/wolfssl-host" -r renode-results
+
+      - name: Upload the Renode results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: renode-results
+          path: renode-results
           if-no-files-found: warn
           retention-days: 14
