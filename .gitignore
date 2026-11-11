@@ -18,3 +18,4 @@ twister-out*/
 # Renode CI scratch (ELFs from the build job, host-side wolfSSL clients)
 renode-elfs/
 wolfssl-host/
+mcuxpresso-out/

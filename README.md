@@ -32,7 +32,7 @@ settings.json created.
 
 This creates the necessary base files that the plugin needs to import the project correctly.
 
-The default board is the FRDM-MCXN947. If you want to use a different board, like the `mimxrt1060_evkb`, add a second argument to the command like so:
+The default board is the FRDM-MCXN947 board the app's `sample.yaml` lists (`cpu0`, or `cpu0/ns` for the OTA client). If you want to use a different board, like the `mimxrt1060_evkb`, add a second argument to the command like so:
 ```
 ./setup.sh dm-wolfmqtt-button-publisher-client-with-zephyr mimxrt1060_evkb
 ```
