@@ -1,10 +1,17 @@
 sample:
-  description: A RGB light server using SSH protocol on Zephyr
+  description: An RGB light server using the SSH protocol on Zephyr
   name: RGB Light Server using SSH
 tests:
-  sample.basic.wolfssh:
+  sample.wolfssh.rgb_server:
+    # Needs Ethernet and an SSH client, so CI only builds it.
+    build_only: true
     tags:
-      - Ethernet
-      - Networking
-      - SSH
-      - GPIO
+      - net
+      - eth
+      - ssh
+      - wolfssh
+      - gpio
+    platform_allow:
+      - frdm_mcxn947/mcxn947/cpu0
+    integration_platforms:
+      - frdm_mcxn947/mcxn947/cpu0

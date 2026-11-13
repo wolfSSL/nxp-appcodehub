@@ -78,7 +78,7 @@ cd dm-wolfssl-tls-hello-server-with-zephyr
 ```
 
 This script will:
-- Automatically clone wolfSSL v5.8.0 from GitHub if not found in the Zephyr modules path
+- Automatically clone wolfSSL v5.9.4 from GitHub if not found in the Zephyr modules path
 - Run autogen.sh to generate the configure script
 - Configure wolfSSL with default settings
 - Build the wolfSSL library
@@ -89,7 +89,7 @@ If you prefer to manually clone wolfSSL instead of using the Zephyr-provided ver
 
 ```bash
 cd dm-wolfssl-tls-hello-server-with-zephyr
-git clone --branch v5.8.0-stable https://github.com/wolfSSL/wolfssl.git
+git clone --branch v5.9.4-stable https://github.com/wolfSSL/wolfssl.git
 ./build-wolfssl.sh
 ```
 

@@ -50,6 +50,10 @@ target_include_directories(app PRIVATE __repo__/modules/crypto/wolfssl/wolfcrypt
 add_definitions(-DWOLFSSL_USER_SETTINGS)
 add_definitions(-DWOLFTPM_USER_SETTINGS)
 
+# Pre-define XSTRINGIFY so wolfTPM doesn't redefine Zephyr's STRINGIFY.
+target_compile_options(app PRIVATE
+    -include "${CMAKE_SOURCE_DIR}/src/wolftpm_stringify_compat.h")
+
 # wolftpm's examples/tls/tls_common.h uses POSIX socket names (gethostbyname,
 # struct hostent, fd_set, FD_ZERO/SET/ISSET, select, inet_addr) without
 # including the POSIX headers. Pre-Zephyr 3.1 CONFIG_NET_SOCKETS_POSIX_NAMES

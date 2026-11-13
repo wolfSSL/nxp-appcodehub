@@ -143,6 +143,9 @@ extern "C" {
 #undef WOLFSSL_SMALL_STACK
 #define WOLFSSL_SMALL_STACK
 
+/* wolfSSH 1.5.0+ refuses to build unless wolfSSL is configured for it. */
+#define WOLFSSL_WOLFSSH
+
 #undef WOLFSSH_SCP
 #define WOLFSSH_SCP
 

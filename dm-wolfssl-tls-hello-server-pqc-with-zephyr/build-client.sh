@@ -23,8 +23,8 @@ if [ ! -d "$WOLFSSL_DIR" ]; then
     
     if [ ! -d "$WOLFSSL_STANDALONE" ]; then
         echo ""
-        echo "Cloning wolfSSL v5.8.0 from GitHub..."
-        git clone --depth 1 --branch v5.8.0-stable https://github.com/wolfSSL/wolfssl.git "$WOLFSSL_STANDALONE"
+        echo "Cloning wolfSSL v5.9.4 from GitHub..."
+        git clone --depth 1 --branch v5.9.4-stable https://github.com/wolfSSL/wolfssl.git "$WOLFSSL_STANDALONE"
         WOLFSSL_DIR="$WOLFSSL_STANDALONE"
     else
         echo "Using existing standalone wolfSSL directory."

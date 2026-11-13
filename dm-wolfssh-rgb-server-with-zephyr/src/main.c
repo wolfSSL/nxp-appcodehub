@@ -20,6 +20,10 @@
  */
 
 /* wolfSSL Includes Start	*/
+/* POSIX socket prototypes come from Zephyr; include them before wolfSSL. */
+#include <sys/socket.h>
+#include <unistd.h>
+
 #include "user_settings.h"
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/ssl.h>

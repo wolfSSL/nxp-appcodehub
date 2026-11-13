@@ -1,9 +1,16 @@
 sample:
-  description: A hello server that uses the ethernet avaliable for the FRDM-MCXN947
+  description: A TLS 1.3 hello server that uses the ethernet available on the FRDM-MCXN947
   name: TLS 1.3 Hello Server
 tests:
-  sample.basic.wolfssl:
+  sample.wolfssl.tls_hello_server:
+    # Needs Ethernet and a TLS peer, so CI only builds it.
+    build_only: true
     tags:
-      - Ethernet
-      - Networking
-      - TLS 1.3
+      - net
+      - eth
+      - tls
+      - wolfssl
+    platform_allow:
+      - frdm_mcxn947/mcxn947/cpu0
+    integration_platforms:
+      - frdm_mcxn947/mcxn947/cpu0

@@ -32,7 +32,7 @@ settings.json created.
 
 This creates the necessary base files that the plugin needs to import the project correctly.
 
-The default board is the FRDM-MCXN947. If you want to use a different board, like the `mimxrt1060_evkb`, add a second argument to the command like so:
+The default board is the FRDM-MCXN947 board the app's `sample.yaml` lists (`cpu0`, or `cpu0/ns` for the OTA client). If you want to use a different board, like the `mimxrt1060_evkb`, add a second argument to the command like so:
 ```
 ./setup.sh dm-wolfmqtt-button-publisher-client-with-zephyr mimxrt1060_evkb
 ```
@@ -79,19 +79,23 @@ manifest:
     # <your other projects>
     - name: wolfssl
       path: modules/crypto/wolfssl
-      revision: v5.9.1-stable
+      revision: v5.9.4-stable
       remote: wolfssl
     - name: wolfssh
       path: modules/lib/wolfssh
-      revision: v1.4.22-stable
+      revision: v1.6.0-stable
       remote: wolfssh
     - name: wolfmqtt
       path: modules/lib/wolfmqtt
-      revision: v2.0.0
+      revision: v2.2.0
       remote: wolfmqtt
+    - name: wolftpm
+      path: modules/lib/wolftpm
+      revision: v4.2.0
+      remote: wolftpm
     - name: wolfboot
       path: modules/bootloader/wolfboot
-      revision: v2.8.0
+      revision: v2.10.0
       remote: wolfboot
 ```
 

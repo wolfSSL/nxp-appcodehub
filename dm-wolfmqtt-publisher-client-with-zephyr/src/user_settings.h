@@ -92,19 +92,13 @@ extern "C" {
 /* ------------------------------------------------------------------------- */
 /* TLS */
 /* ------------------------------------------------------------------------- */
-/* TLS v1.2 (on by default) */
-#ifdef CONFIG_WOLFSSL_TLS_VERSION_1_2
-    #undef  WOLFSSL_NO_TLS12
-#else
-    #define WOLFSSL_NO_TLS12
-#endif
+/* TLS v1.2: enabled here, no longer read back from wolfSSL's Kconfig. */
+#undef WOLFSSL_NO_TLS12
 //#define NO_WOLFSSL_SERVER /* Optionally disable TLS server code */
 //#define NO_WOLFSSL_CLIENT /* Optionally disable TLS client code */
 
-/* TLS v1.3 */
-#if defined(CONFIG_WOLFSSL_TLS_VERSION_1_3) || defined(CONFIG_WOLFSSL_TLS13_ENABLED)
-    #define WOLFSSL_TLS13
-#endif
+/* TLS 1.3 set here: its Kconfig option needs no settings file. */
+#define WOLFSSL_TLS13
 
 /* Disable older TLS version prior to 1.2 */
 #define NO_OLD_TLS
@@ -131,6 +125,9 @@ extern "C" {
 /* Session Cache */
 #if 1
     #define SMALL_SESSION_CACHE
+    /* Session cache unused; too big for 320 KB SRAM on wolfSSL 5.9.4. */
+    #define NO_CLIENT_CACHE
+    #define NO_SESSION_CACHE_REF /* required by NO_CLIENT_CACHE */
     #ifdef WOLFSSL_TLS13
         #define HAVE_SESSION_TICKET /* session tickets required for resumption in TLS v1.3 */
     #endif

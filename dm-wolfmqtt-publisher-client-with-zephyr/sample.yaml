@@ -1,11 +1,18 @@
 sample:
-  description: A sample that shows how to use the MQTT publisher client wrapped with TLS 1.3 on Zephyr
-  name: TLS 1.3 MQTT Publisher Client with Zephyr
+  description: An MQTT publisher client wrapped with TLS 1.3, publishing to AWS IoT
+    on Zephyr
+  name: TLS 1.3 MQTT Publisher Client
 tests:
-  sample.basic.wolfssl:
+  sample.wolfmqtt.publisher_client:
+    # Needs Ethernet, NTP and an MQTT broker, so CI only builds it.
+    build_only: true
     tags:
-      - Ethernet
-      - Networking
-      - TLS 1.3
-      - MQTT
-      - AWS IoT
+      - net
+      - eth
+      - tls
+      - mqtt
+      - wolfmqtt
+    platform_allow:
+      - frdm_mcxn947/mcxn947/cpu0
+    integration_platforms:
+      - frdm_mcxn947/mcxn947/cpu0

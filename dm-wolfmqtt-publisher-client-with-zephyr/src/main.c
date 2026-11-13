@@ -20,6 +20,10 @@
  */
 
 /* User Settings file */
+/* POSIX socket prototypes come from Zephyr; include them before wolfSSL. */
+#include <sys/socket.h>
+#include <unistd.h>
+
 #include "user_settings.h"  /* For wolfssl/mqtt zephyr configuration */
 #include <wolfssl/wolfcrypt/settings.h>
 /* wolfSSL Includes Start */
@@ -512,7 +516,8 @@ int mqttsimple_test(void)
 
     /* Connect to broker */
     wolfSSL_Debugging_ON();
-    rc = MqttClient_NetConnect(&mClient, resolve_hostname(MQTT_HOST), MQTT_PORT,
+    /* Hostname, not IP: wolfMQTT >= 2.2 checks the cert against it. */
+    rc = MqttClient_NetConnect(&mClient, MQTT_HOST, MQTT_PORT,
         MQTT_CON_TIMEOUT_MS, MQTT_USE_TLS, mqtt_tls_cb);
     if (rc != MQTT_CODE_SUCCESS) {
         goto exit;
@@ -537,6 +542,8 @@ int mqttsimple_test(void)
 
     /* Subscribe and wait for Ack */
     XMEMSET(&mqttObj, 0, sizeof(mqttObj));
+    /* Zero the unused fields: wolfMQTT >= 2.2 rejects junk v5 sub_options. */
+    XMEMSET(topics, 0, sizeof(topics));
     topics[0].topic_filter = MQTT_TOPIC_NAME;
     topics[0].qos = MQTT_QOS;
     mqttObj.subscribe.packet_id = mqtt_get_packetid();

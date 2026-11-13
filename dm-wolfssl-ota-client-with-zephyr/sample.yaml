@@ -1,10 +1,21 @@
 sample:
-  description: An OTA client that uses the ethernet available for the FRDM-MCXN947
-  name: OTA Client with wolfSSL and Zephyr
+  description: An OTA client that uses the ethernet available on the FRDM-MCXN947 and is
+    updated by a wolfBoot secure bootloader
+  name: OTA Client with wolfSSL and wolfBoot
 tests:
-  sample.basic.wolfssl:
+  sample.wolfssl.ota_client:
+    # Needs wolfBoot in flash and an MQTT broker, so CI only builds it.
+    build_only: true
     tags:
-      - Ethernet
-      - Networking
-      - TLS 1.3
-      - OTA
+      - net
+      - eth
+      - tls
+      - wolfssl
+      - wolfboot
+      - ota
+    # Boots as /ns under wolfBoot; plain cpu0 is allowed so twister -p cpu0 still builds it.
+    platform_allow:
+      - frdm_mcxn947/mcxn947/cpu0
+      - frdm_mcxn947/mcxn947/cpu0/ns
+    integration_platforms:
+      - frdm_mcxn947/mcxn947/cpu0/ns

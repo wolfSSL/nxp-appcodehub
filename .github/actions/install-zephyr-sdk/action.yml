@@ -1,0 +1,99 @@
+name: Install the Zephyr SDK
+description: >
+  Install a pinned, cached Zephyr SDK (minimal bundle plus the Arm toolchain)
+  and export ZEPHYR_TOOLCHAIN_VARIANT / ZEPHYR_SDK_INSTALL_DIR. Shared by the
+  discovery and build jobs: even `twister --dry-run` needs a toolchain.
+
+inputs:
+  version:
+    description: SDK version to install, e.g. 1.0.1
+    required: true
+  dir:
+    description: Directory to install into (cached), e.g. /tmp/zephyr-sdk
+    required: true
+  arm-toolchain:
+    description: Architecture toolchain to fetch
+    required: false
+    default: arm-zephyr-eabi
+
+outputs:
+  path:
+    description: Absolute path of the installed SDK
+    value: ${{ steps.paths.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Restore the SDK cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.dir }}
+        key: zephyr-sdk-${{ inputs.version }}-linux-x86_64-${{ inputs.arm-toolchain }}
+
+    - name: Download and unpack
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        SDK_VERSION: ${{ inputs.version }}
+        SDK_DIR: ${{ inputs.dir }}
+        ARCH: ${{ inputs.arm-toolchain }}
+      run: |
+        set -euo pipefail
+        sdk="$SDK_DIR/zephyr-sdk-$SDK_VERSION"
+        stamp="$SDK_DIR/.installed-$SDK_VERSION-$ARCH"
+        gcc="$sdk/gnu/$ARCH/bin/$ARCH-gcc"
+
+        # Skip only when the stamp exists and the compiler runs; otherwise re-extract in place.
+        compiler_ok() {
+          [ -x "$1" ] && "$1" --version >/dev/null 2>&1
+        }
+        if [ -f "$stamp" ] && compiler_ok "$gcc"; then
+          echo "Zephyr SDK $SDK_VERSION ($ARCH) already installed in $SDK_DIR, skipping"
+          exit 0
+        fi
+        if [ -f "$stamp" ]; then
+          echo "::warning::stale stamp in $SDK_DIR: $gcc does not run; re-installing"
+          rm -f "$stamp"
+        fi
+
+        mkdir -p "$SDK_DIR"
+        cd "$SDK_DIR"
+        base="https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v$SDK_VERSION"
+        curl -sSL -O "$base/zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+        curl -sSL -O "$base/toolchain_gnu_linux-x86_64_${ARCH}.tar.xz"
+
+        rm -rf "zephyr-sdk-$SDK_VERSION" "./$ARCH"
+        tar -xf "zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+        # The per-arch archive unpacks to ./<arch>; SDK >= 1.0 wants it in gnu/<arch>.
+        mkdir -p "$sdk/gnu"
+        rm -rf "$sdk/gnu/$ARCH"
+        tar -xf "toolchain_gnu_linux-x86_64_${ARCH}.tar.xz" -C "$sdk/gnu"
+        rm -f "zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz" \
+              "toolchain_gnu_linux-x86_64_${ARCH}.tar.xz"
+        (cd "$sdk" && ./setup.sh -t "$ARCH")
+
+        if ! compiler_ok "$gcc"; then
+          echo "::error::${ARCH} compiler missing from $sdk after unpack, or it does not run"
+          exit 1
+        fi
+        : > "$stamp"
+
+    - name: Export the toolchain environment
+      id: paths
+      shell: bash
+      env:
+        SDK_VERSION: ${{ inputs.version }}
+        SDK_DIR: ${{ inputs.dir }}
+      run: |
+        set -euo pipefail
+        sdk="$SDK_DIR/zephyr-sdk-$SDK_VERSION"
+        if [ ! -x "$sdk/gnu/${{ inputs.arm-toolchain }}/bin/${{ inputs.arm-toolchain }}-gcc" ]; then
+          echo "::error::${{ inputs.arm-toolchain }} compiler missing from $sdk"
+          exit 1
+        fi
+        # Zephyr >= 4.3 renamed the toolchain variant zephyr-sdk to zephyr.
+        echo "ZEPHYR_TOOLCHAIN_VARIANT=zephyr" >> "$GITHUB_ENV"
+        echo "ZEPHYR_SDK_INSTALL_DIR=$sdk" >> "$GITHUB_ENV"
+        echo "SDK_dir=$sdk" >> "$GITHUB_ENV"
+        echo "path=$sdk" >> "$GITHUB_OUTPUT"

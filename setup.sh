@@ -8,13 +8,17 @@ sanitize_directory() {
     echo "$sanitized_dir"
 }
 
-# Function to set the default board ID or use the provided one
+# Board: the argument, else sample.yaml's first integration platform, else cpu0.
 set_board_id() {
-    if [ -z "$2" ]; then
-        board_id="frdm_mcxn947/mcxn947/cpu0"
-    else
-        board_id="$2"
+    board_id="${2:-}"
+    if [ -z "$board_id" ] && [ -f "$1/sample.yaml" ]; then
+        board_id="$(awk '/integration_platforms:/ {f=1; next} f && /- / {print $2; exit}' "$1/sample.yaml")"
     fi
+    board_id="${board_id:-frdm_mcxn947/mcxn947/cpu0}"
+    case "$board_id" in
+        */ns) trustzone_type="nonsecure" ;;
+        *) trustzone_type="none" ;;
+    esac
 }
 
 # Function to prompt the user and check the response
@@ -126,7 +130,7 @@ create_mcuxpresso_tools() {
   "toolchainPath": "",
   "toolchainVersion": "",
   "linkedProjects": [],
-  "trustZoneType": "none",
+  "trustZoneType": "$trustzone_type",
   "multicoreType": "none",
   "debug": {
     "linkserver": {},
@@ -174,7 +178,7 @@ create_vscode_configs() {
     fi
 
     # Set the board ID
-    set_board_id "$@"
+    set_board_id "$subfolder" "${2:-}"
 
     # Check if the input directory exists
     if [ ! -d "$subfolder" ]; then

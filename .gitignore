@@ -10,3 +10,12 @@ dm-wolfssl-ota-client-with-zephyr/wolfbootConfig/*.o
 # PQC demo desktop client build artifacts (built by build-client.sh)
 dm-wolfssl-tls-hello-server-pqc-with-zephyr/client-tls13-filetransfer
 dm-wolfssl-tls-hello-server-pqc-with-zephyr/wolfssl/
+# Python test/lint artefacts
+__pycache__/
+*.pyc
+twister-out*/
+.pytest_cache/
+# Renode CI scratch (ELFs from the build job, host-side wolfSSL clients)
+renode-elfs/
+wolfssl-host/
+mcuxpresso-out/
